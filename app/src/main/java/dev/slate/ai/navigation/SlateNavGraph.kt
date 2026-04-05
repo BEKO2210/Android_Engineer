@@ -8,9 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import dev.slate.ai.feature.chat.ChatScreen
+import dev.slate.ai.feature.models.ModelDetailScreen
 import dev.slate.ai.feature.models.ModelsScreen
 import dev.slate.ai.feature.settings.SettingsScreen
 
@@ -38,7 +41,19 @@ fun SlateNavGraph(
             ChatScreen()
         }
         composable(TopLevelDestination.MODELS.route) {
-            ModelsScreen()
+            ModelsScreen(
+                onModelClick = { modelId ->
+                    navController.navigate("models/$modelId")
+                },
+            )
+        }
+        composable(
+            route = "models/{modelId}",
+            arguments = listOf(navArgument("modelId") { type = NavType.StringType }),
+        ) {
+            ModelDetailScreen(
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(TopLevelDestination.SETTINGS.route) {
             SettingsScreen()

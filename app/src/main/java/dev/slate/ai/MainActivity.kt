@@ -46,9 +46,14 @@ fun SlateApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    // Hide bottom bar on detail screens
+    val topLevelRoutes = TopLevelDestination.entries.map { it.route }.toSet()
+    val showBottomBar = currentDestination?.route in topLevelRoutes
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
+            if (showBottomBar) {
             NavigationBar {
                 TopLevelDestination.entries.forEach { destination ->
                     val selected = currentDestination?.hierarchy?.any {
@@ -76,6 +81,7 @@ fun SlateApp() {
                     )
                 }
             }
+            } // if showBottomBar
         },
     ) { innerPadding ->
         SlateNavGraph(

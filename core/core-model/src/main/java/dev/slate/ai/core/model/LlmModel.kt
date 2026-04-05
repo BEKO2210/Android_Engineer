@@ -16,6 +16,10 @@ data class LlmModel(
     val sha256: String,
     val minRamMb: Int,
     val fileName: String,
+    val contextLength: Int = 2048,
+    val family: String = "",
+    val capabilities: List<String> = emptyList(),
+    val deviceRecommendation: String = "",
 )
 
 enum class ModelTier {
