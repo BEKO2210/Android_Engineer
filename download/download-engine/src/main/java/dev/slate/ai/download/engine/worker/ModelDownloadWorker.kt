@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -73,7 +74,13 @@ class ModelDownloadWorker @AssistedInject constructor(
         }
 
         try {
-            setForeground(createForegroundInfo(modelName, 0, expectedTotal))
+            // Try to show foreground notification (may fail on some devices)
+            try {
+                setForeground(createForegroundInfo(modelName, 0, expectedTotal))
+            } catch (e: Exception) {
+                Log.w("SlateDownload", "Could not set foreground: ${e.message}")
+                // Continue without foreground — download still works
+            }
 
             // Check existing partial file for resume
             val existingBytes = if (partFile.exists()) partFile.length() else 0L
@@ -208,6 +215,7 @@ class ModelDownloadWorker @AssistedInject constructor(
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
+        createNotificationChannel()
         val modelName = inputData.getString(KEY_MODEL_NAME) ?: "Model"
         return createForegroundInfo(modelName, 0, 0)
     }
