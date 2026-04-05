@@ -287,29 +287,36 @@ class ChatViewModel @Inject constructor(
     private fun buildPrompt(): String {
         val sb = StringBuilder()
 
-        // Simple universal prompt format that works with all small GGUF models.
-        // No special tokens — these models don't understand <|system|> etc.
-        // Instead use a clear, structured plain-text format.
-
+        // Simple universal prompt — short, works with all small GGUF models
         sb.append("### Instruction:\n")
-        sb.append("You are a helpful, concise AI assistant called Slate. ")
-        sb.append("Answer the user's message directly. ")
-        sb.append("Do not simulate the user. Do not write \"User:\" or \"Assistant:\" labels. ")
-        sb.append("Reply in the same language the user uses. ")
-        sb.append("Give only ONE response, then stop.\n\n")
+        sb.append("You are Slate, a helpful AI assistant. ")
+        sb.append("Answer directly and concisely. Do not simulate the user. ")
+        sb.append("Reply in the user's language. Give ONE response, then stop.\n\n")
 
-        // Conversation history — last 6 turns max
+        // Conversation history — keep it SHORT to avoid context overflow
+        // Small models have 2048 token context. Reserve ~400 tokens for response.
+        // Each token ≈ 4 chars. Budget: ~1600 tokens ≈ 6400 chars for prompt.
+        val maxPromptChars = 5000
+        val instructionLength = sb.length
+
         val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
-        val recentMsgs = msgs.takeLast(6)
 
-        if (recentMsgs.isNotEmpty()) {
+        // Build history from most recent, stop when budget exceeded
+        val historyLines = mutableListOf<String>()
+        var historyChars = 0
+        for (msg in msgs.reversed()) {
+            val prefix = if (msg.role == "user") "User" else "Slate"
+            // Truncate long messages to 500 chars in history
+            val content = msg.content.take(500)
+            val line = "$prefix: $content\n"
+            if (historyChars + line.length + instructionLength > maxPromptChars) break
+            historyLines.add(0, line)
+            historyChars += line.length
+        }
+
+        if (historyLines.isNotEmpty()) {
             sb.append("### Conversation:\n")
-            for (msg in recentMsgs) {
-                when (msg.role) {
-                    "user" -> sb.append("User: ${msg.content}\n")
-                    "assistant" -> sb.append("Slate: ${msg.content}\n")
-                }
-            }
+            historyLines.forEach { sb.append(it) }
         }
 
         sb.append("\n### Response:\n")
