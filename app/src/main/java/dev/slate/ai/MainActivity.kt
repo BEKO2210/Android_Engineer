@@ -12,6 +12,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -35,15 +36,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            SlateTheme {
-                SlateApp(preferences)
+            val isDarkTheme by preferences.isDarkTheme.collectAsState(initial = true)
+            val isOnboardingComplete by preferences.isOnboardingComplete.collectAsState(initial = true)
+
+            SlateTheme(darkTheme = isDarkTheme) {
+                SlateApp(isOnboardingComplete = isOnboardingComplete)
             }
         }
     }
 }
 
 @Composable
-fun SlateApp(preferences: SlatePreferences) {
+fun SlateApp(isOnboardingComplete: Boolean) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -87,7 +91,7 @@ fun SlateApp(preferences: SlatePreferences) {
     ) { innerPadding ->
         SlateNavGraph(
             navController = navController,
-            preferences = preferences,
+            isOnboardingComplete = isOnboardingComplete,
             modifier = Modifier.padding(innerPadding),
         )
     }

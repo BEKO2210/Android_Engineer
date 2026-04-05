@@ -5,8 +5,7 @@ import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavHostController
@@ -14,7 +13,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import dev.slate.ai.core.datastore.SlatePreferences
 import dev.slate.ai.feature.chat.ChatScreen
 import dev.slate.ai.feature.models.ModelDetailScreen
 import dev.slate.ai.feature.models.ModelsScreen
@@ -36,15 +34,12 @@ enum class TopLevelDestination(
 @Composable
 fun SlateNavGraph(
     navController: NavHostController,
-    preferences: SlatePreferences,
+    isOnboardingComplete: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val isOnboardingComplete by preferences.isOnboardingComplete.collectAsState(initial = true)
-
-    val startDestination = if (isOnboardingComplete) {
-        TopLevelDestination.CHAT.route
-    } else {
-        "onboarding"
+    // startDestination must be stable — compute once and remember
+    val startDestination = remember {
+        if (isOnboardingComplete) TopLevelDestination.CHAT.route else "onboarding"
     }
 
     NavHost(
