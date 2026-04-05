@@ -162,6 +162,8 @@ fun ModelsScreen(
                                 ModelCard(
                                     model = model,
                                     onClick = { onModelClick(model.id) },
+                                    isCompatible = viewModel.isModelCompatible(model),
+                                    hasStorage = viewModel.hasEnoughStorage(model),
                                 )
                             }
                             item { Spacer(Modifier.height(16.dp)) }
@@ -186,6 +188,8 @@ private fun ModelCard(
     model: LlmModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isCompatible: Boolean = true,
+    hasStorage: Boolean = true,
 ) {
     SlateGlowCard(
         modifier = modifier,
@@ -290,6 +294,23 @@ private fun ModelCard(
                         )
                     }
                 }
+            }
+
+            // Compatibility warnings
+            if (!isCompatible) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Your device may not have enough RAM for this model",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            } else if (!hasStorage) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Not enough free storage for this model",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

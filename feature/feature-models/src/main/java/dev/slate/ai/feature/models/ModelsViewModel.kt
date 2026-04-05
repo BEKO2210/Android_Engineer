@@ -1,8 +1,12 @@
 package dev.slate.ai.feature.models
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.slate.ai.core.common.DeviceCapability
+import dev.slate.ai.core.common.DeviceInfo
 import dev.slate.ai.core.data.repository.ModelRepository
 import dev.slate.ai.core.model.LlmModel
 import dev.slate.ai.core.model.ModelTier
@@ -15,6 +19,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ModelsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val modelRepository: ModelRepository,
 ) : ViewModel() {
 
@@ -23,6 +28,8 @@ class ModelsViewModel @Inject constructor(
 
     private val _selectedFilter = MutableStateFlow<ModelTier?>(null)
     val selectedFilter: StateFlow<ModelTier?> = _selectedFilter.asStateFlow()
+
+    val deviceInfo: DeviceInfo = DeviceCapability.getDeviceInfo(context)
 
     init {
         loadModels()
@@ -45,6 +52,14 @@ class ModelsViewModel @Inject constructor(
 
     fun getFilteredModels(models: List<LlmModel>, filter: ModelTier?): List<LlmModel> {
         return if (filter == null) models else models.filter { it.tier == filter }
+    }
+
+    fun isModelCompatible(model: LlmModel): Boolean {
+        return deviceInfo.totalRamMb >= model.minRamMb
+    }
+
+    fun hasEnoughStorage(model: LlmModel): Boolean {
+        return (deviceInfo.availableStorageMb * 1024 * 1024) >= (model.sizeBytes * 1.1).toLong()
     }
 }
 

@@ -1,96 +1,70 @@
 # Risk Register
 
-## R1: NDK Build Complexity — HIGH
+## R1: NDK Build Complexity — MITIGATED
+**Description:** Cross-compiling llama.cpp for Android ARM64 via CMake/NDK.
+**Status:** Resolved in Phase 5. llama.cpp builds successfully for arm64-v8a with NDK 27.2, CMake 3.22.1. Key fixes: no -ffast-math flag, no common.h dependency, direct llama_tokenize API.
+**Residual risk:** NDK version updates may break build. Pinned to specific versions.
 
-**Description:** Cross-compiling llama.cpp for Android ARM64 via CMake/NDK is non-trivial. Build failures from GGML backend selection, missing SIMD flags, or NDK version mismatches can block progress.
+## R2: OOM Kills During Inference — MITIGATED
+**Description:** Android's low-memory killer terminates app during model load/inference.
+**Mitigation applied:**
+- RAM check (1.3x file size) via ActivityManager before model load
+- Device tier detection (LOW/BASIC/STANDARD/HIGH) in onboarding
+- Compatibility warnings on model cards
+- mmap enabled by default (OS manages memory)
+- Single-model-loaded policy
+**Residual risk:** Background apps can consume RAM between check and load.
 
-**Mitigation:**
-- Pin to a specific llama.cpp release tag (not `master`)
-- Reference working CMake configs from existing Android apps (SmolChat)
-- Test native build early in Phase 1, not Phase 5
-- Keep pre-built `.so` fallback for development
+## R3: Model File Size vs. Storage — MITIGATED
+**Description:** Budget devices have limited storage; smallest model is 600MB.
+**Mitigation applied:**
+- Pre-download storage check with 10% margin
+- Storage screen shows per-model usage + available space
+- Compatibility warnings on model cards when storage insufficient
+- Onboarding recommends device-appropriate model
 
-**Status:** Active — will be tested in Phase 1
+## R4: Download Stability over Mobile Networks — MITIGATED
+**Description:** Downloads of 0.6-3 GB can be interrupted.
+**Mitigation applied:**
+- HTTP Range resume (partial .part files preserved)
+- WorkManager retry with exponential backoff
+- Room-persisted download state survives app restart
+- Stale download recovery on app launch
+- Only retryable HTTP codes trigger retry; permanent failures fail fast
 
----
+## R5: Thermal Throttling During Inference — ACTIVE (Medium)
+**Description:** Sustained inference heats device, causing throttling.
+**Current mitigation:** Thread count set to cores-2 (min 2). No continuous background inference.
+**Future:** Monitor token rate drops, suggest cooldown.
 
-## R2: OOM Kills During Inference — HIGH
+## R6: Hugging Face URL Stability — ACTIVE (Low)
+**Description:** Direct download URLs may change.
+**Current mitigation:** URLs in local JSON asset, easily updatable.
 
-**Description:** Android's low-memory killer will terminate the app if model loading + inference consumes too much RAM. Models need ~1.3x their file size in RAM.
+## R7: License Compliance — ACTIVE (Medium)
+**Description:** Models have different licenses.
+**Current mitigation:** License displayed on model detail screen. MVP prioritizes Apache 2.0/MIT models.
 
-**Mitigation:**
-- RAM check via `ActivityManager.getMemoryInfo()` before model load
-- Use `mmap` to let OS manage memory mapping
-- Recommend smaller models on low-RAM devices
-- Graceful error handling on load failure
+## R8: Corrupted Downloads — MITIGATED
+**Description:** Network errors or disk issues can corrupt model files.
+**Mitigation applied:**
+- SHA-256 verification after download (when hash available)
+- Hash mismatch → file deleted, status FAILED, user informed
+- Retry available from error state
+- .part files cleaned up on non-resumable failures
 
-**Status:** Active — addressed in Phase 5
+## R9: Unsupported Devices — MITIGATED
+**Description:** Low-end devices cannot run LLMs effectively.
+**Mitigation applied:**
+- Device tier detection on first launch
+- Clear warning for LOW tier devices
+- Model compatibility indicators on catalog cards
+- UnsatisfiedLinkError catch for non-ARM64 devices
+- Graceful error states for load failures
 
----
-
-## R3: Model File Size vs. Storage — HIGH
-
-**Description:** Even "tiny" models are 600MB+. Budget devices often have limited free storage.
-
-**Mitigation:**
-- Pre-download storage check with clear UI messaging
-- Default-recommend 1B model for low-storage devices
-- Model deletion with immediate space reclamation
-- Clear size information in model catalog
-
-**Status:** Active — addressed in Phase 3-4
-
----
-
-## R4: Download Stability over Mobile Networks — MEDIUM
-
-**Description:** Downloads of 0.6-3 GB over mobile networks can be interrupted by connectivity changes, background killing, or timeouts.
-
-**Mitigation:**
-- HTTP Range header resume support
-- WorkManager automatic retry with exponential backoff
-- Room-persisted download state survives app restarts
-- Clear UI for interrupted/resumable downloads
-
-**Status:** Active — addressed in Phase 4
-
----
-
-## R5: Thermal Throttling During Inference — MEDIUM
-
-**Description:** Sustained LLM inference is CPU-intensive, causing device heating and performance throttling.
-
-**Mitigation:**
-- Monitor token generation rate; warn on significant drops
-- Limit inference thread count to `availableProcessors - 2`
-- No automatic background inference
-- Future: investigate GPU offload for heat distribution
-
-**Status:** Active — addressed in Phase 8
-
----
-
-## R6: Hugging Face URL Stability — LOW
-
-**Description:** Direct download URLs from Hugging Face could change format or require authentication in the future.
-
-**Mitigation:**
-- Abstract download URLs behind a model catalog config
-- Model catalog is a local JSON asset, easily updatable
-- No hardcoded URLs in UI or business logic
-
-**Status:** Monitoring
-
----
-
-## R7: License Compliance — MEDIUM
-
-**Description:** Different models have different licenses (Apache 2.0, MIT, Meta Community License, Gemma Terms). Commercial use restrictions may apply.
-
-**Mitigation:**
-- Document license for every model in MODELS.md
-- Display license info on model detail screen
-- MVP prioritizes Apache 2.0 / MIT licensed models
-- Legal review before Play Store release
-
-**Status:** Active — tracked in MODELS.md
+## R10: Stale App State — MITIGATED
+**Description:** App killed during download/inference leaves inconsistent state.
+**Mitigation applied:**
+- recoverStaleDownloads() on app launch (marks orphaned DOWNLOADING as PAUSED)
+- Inference state defaults to Idle on restart (model must be reloaded)
+- Partial files preserved for resume

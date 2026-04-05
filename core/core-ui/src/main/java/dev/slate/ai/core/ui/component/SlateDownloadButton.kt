@@ -7,6 +7,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 sealed interface DownloadButtonState {
@@ -55,7 +58,16 @@ fun SlateDownloadButton(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    val stateDescription = when (state) {
+        is DownloadButtonState.NotDownloaded -> "Not downloaded"
+        is DownloadButtonState.Downloading -> "Downloading ${(state.progress * 100).toInt()} percent"
+        is DownloadButtonState.Paused -> "Download paused"
+        is DownloadButtonState.Verifying -> "Verifying download"
+        is DownloadButtonState.Completed -> "Download complete, ready to use"
+        is DownloadButtonState.Error -> "Download error: ${state.message}"
+    }
+
+    Column(modifier = modifier.fillMaxWidth().semantics { contentDescription = stateDescription }) {
         AnimatedContent(
             targetState = state,
             transitionSpec = {
