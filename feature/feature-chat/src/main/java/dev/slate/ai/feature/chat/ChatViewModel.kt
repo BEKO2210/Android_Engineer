@@ -17,9 +17,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class DownloadedModelInfo(
+    val id: String,
+    val name: String,
+)
 
 data class ChatMessage(
     val id: String,
@@ -48,6 +54,15 @@ class ChatViewModel @Inject constructor(
 
     private val _statusMessage = MutableStateFlow("")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
+
+    // Downloaded models for the idle screen
+    val downloadedModels: StateFlow<List<DownloadedModelInfo>> = downloadManager
+        .observeAllDownloads()
+        .map { list ->
+            list.filter { it.status == "COMPLETE" }
+                .map { DownloadedModelInfo(it.modelId, it.modelName) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var conversationId: String? = null
     private var currentModelId: String? = null
@@ -251,9 +266,23 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun buildPrompt(): String {
-        // Build a simple chat prompt from message history
-        val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
         val sb = StringBuilder()
+
+        // System prompt
+        sb.append("""System: You are Slate, a helpful, concise, and friendly AI assistant running locally on the user's device. Follow these rules:
+- Answer clearly and directly
+- Be concise. Avoid unnecessary filler
+- Use paragraphs for readability
+- When showing code, use markdown code blocks
+- If you don't know something, say so honestly
+- Never pretend to access the internet, files, or external services
+- Respond in the same language the user writes in
+- Be warm but professional
+
+""")
+
+        // Conversation history
+        val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
         for (msg in msgs) {
             when (msg.role) {
                 "user" -> sb.append("User: ${msg.content}\n")
