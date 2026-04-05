@@ -65,7 +65,8 @@ class ChatViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var conversationId: String? = null
-    private var currentModelId: String? = null
+    private val _currentModelId = MutableStateFlow<String?>(null)
+    val currentModelId: StateFlow<String?> = _currentModelId.asStateFlow()
     private var generationJob: Job? = null
     private var currentAssistantMessageId: String? = null
     private var streamingBuffer = StringBuilder()
@@ -89,11 +90,11 @@ class ChatViewModel @Inject constructor(
             result.fold(
                 onSuccess = {
                     // If switching models, start a new conversation
-                    if (currentModelId != null && currentModelId != modelId) {
+                    if (_currentModelId.value != null && _currentModelId.value != modelId) {
                         conversationId = null
                         _messages.value = emptyList()
                     }
-                    currentModelId = modelId
+                    _currentModelId.value = modelId
                     _statusMessage.value = "Ready"
 
                     // Load existing conversation if any
@@ -110,7 +111,7 @@ class ChatViewModel @Inject constructor(
         if (inferenceState.value !is InferenceState.Ready) return
 
         // Check if the model file still exists (may have been deleted from storage screen)
-        currentModelId?.let { modelId ->
+        _currentModelId.value?.let { modelId ->
             viewModelScope.launch {
                 val file = downloadManager.getModelFile(modelId)
                 if (file == null) {
@@ -133,7 +134,7 @@ class ChatViewModel @Inject constructor(
             // Create conversation if needed (only if persisting)
             if (shouldPersist && conversationId == null) {
                 conversationId = chatRepository.createConversation(
-                    modelId = currentModelId ?: "unknown",
+                    modelId = _currentModelId.value ?: "unknown",
                     title = text.take(50),
                 )
             }
@@ -204,7 +205,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             generationJob?.cancel()
             engine.unload()
-            currentModelId = null
+            _currentModelId.value = null
             _statusMessage.value = "Model unloaded"
         }
     }
@@ -287,7 +288,7 @@ class ChatViewModel @Inject constructor(
 
     private fun buildPrompt(): String {
         val sb = StringBuilder()
-        val modelId = currentModelId ?: ""
+        val modelId = _currentModelId.value ?: ""
 
         // Use the correct chat template per model family
         val isPhi = modelId.contains("phi", ignoreCase = true)

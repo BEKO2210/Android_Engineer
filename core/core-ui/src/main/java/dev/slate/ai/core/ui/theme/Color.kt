@@ -35,3 +35,33 @@ val SlateLightOnSurfaceVariant = Color(0xFF616161)
 val SlateLightPrimary = Color(0xFF37474F)
 val SlateLightPrimaryContainer = Color(0xFFCFD8DC)
 val SlateLightOutline = Color(0xFFE0E0E0)
+
+// Model accent colors — each model gets its own identity
+val SlateAccentQwen = Color(0xFFA8C4D4)     // Ice-blue (flagship)
+val SlateAccentSmolLM = Color(0xFFB39DDB)   // Soft lavender
+val SlateAccentPhi = Color(0xFF80CBC4)       // Teal-mint
+val SlateAccentLlama = Color(0xFFFFAB91)     // Warm coral
+
+object ModelAccent {
+    fun forModelId(modelId: String?): Color {
+        if (modelId == null) return SlatePrimary
+        return when {
+            modelId.contains("qwen", ignoreCase = true) -> SlateAccentQwen
+            modelId.contains("smol", ignoreCase = true) -> SlateAccentSmolLM
+            modelId.contains("phi", ignoreCase = true) -> SlateAccentPhi
+            modelId.contains("llama", ignoreCase = true) -> SlateAccentLlama
+            else -> SlatePrimary
+        }
+    }
+
+    fun nameForModelId(modelId: String?): String {
+        if (modelId == null) return ""
+        return when {
+            modelId.contains("qwen", ignoreCase = true) -> "Qwen"
+            modelId.contains("smol", ignoreCase = true) -> "SmolLM"
+            modelId.contains("phi", ignoreCase = true) -> "Phi"
+            modelId.contains("llama", ignoreCase = true) -> "Llama"
+            else -> ""
+        }
+    }
+}
