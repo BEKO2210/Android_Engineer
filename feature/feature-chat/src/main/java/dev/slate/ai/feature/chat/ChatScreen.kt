@@ -138,11 +138,11 @@ fun ChatScreen(
                     )
                 }
                 messages.isEmpty() && isReady -> {
-                    SlateEmptyState(
-                        icon = Icons.Default.ChatBubble,
-                        title = "Start a conversation",
-                        description = "Type a message below to begin.",
-                        modifier = Modifier.align(Alignment.Center),
+                    // Conversation starters
+                    ConversationStarterView(
+                        starters = ChatViewModel.CONVERSATION_STARTERS,
+                        accentColor = accentColor,
+                        onSelect = { viewModel.sendConversationStarter(it) },
                     )
                 }
                 else -> {
@@ -214,6 +214,51 @@ fun ChatScreen(
                 }
             }
         }
+    }
+}
+
+// === CONVERSATION STARTERS ===
+@Composable
+private fun ConversationStarterView(
+    starters: List<ConversationStarter>,
+    accentColor: Color,
+    onSelect: (ConversationStarter) -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(48.dp))
+        SlateThinkingIndicator(size = 48.dp, accentColor = accentColor)
+        Spacer(Modifier.height(16.dp))
+        Text("Choose a language", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.height(4.dp))
+        Text("Slate will greet you and respond in that language", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+
+        // Language chips
+        val rows = starters.chunked(4)
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                row.forEach { starter ->
+                    androidx.compose.material3.AssistChip(
+                        onClick = { onSelect(starter) },
+                        label = { Text(starter.langName, style = MaterialTheme.typography.labelMedium) },
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Or type a message in any language below",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
     }
 }
 
