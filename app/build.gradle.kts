@@ -49,8 +49,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // To sign release builds, uncomment signingConfig after creating keystore:
-            // signingConfig = signingConfigs.getByName("release")
+            // Sign with debug key for sideloading. Replace with release key for Play Store.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

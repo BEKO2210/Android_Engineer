@@ -187,7 +187,10 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(messages, key = { it.id }) { msg ->
-                            MessageBubble(message = msg)
+                            MessageBubble(
+                                message = msg,
+                                modifier = Modifier.animateItem(),
+                            )
                         }
                         item { Spacer(Modifier.height(8.dp)) }
                     }
@@ -344,14 +347,14 @@ private fun IdleState(
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(message: ChatMessage, modifier: Modifier = Modifier) {
     val isUser = message.role == "user"
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Column(

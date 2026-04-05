@@ -1,22 +1,29 @@
 package dev.slate.ai.core.ui.component
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Card with a subtle static gradient border.
- * No animation — stable and performant for lists.
+ * Card with a subtle static gradient border and press-scale feedback.
  */
 @Composable
 fun SlateGlowCard(
@@ -30,9 +37,16 @@ fun SlateGlowCard(
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = tween(100),
+        label = "card_press",
+    )
 
     Box(
         modifier = modifier
+            .scale(scale)
             .clip(shape)
             .background(
                 brush = Brush.linearGradient(
@@ -47,8 +61,18 @@ fun SlateGlowCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
+                if (onClick != null) {
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                tryAwaitRelease()
+                                isPressed = false
+                            },
+                            onTap = { onClick() },
+                        )
+                    }
+                } else Modifier
             ),
     ) {
         content()
