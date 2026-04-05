@@ -25,16 +25,21 @@ android {
 
 dependencies {
     implementation(project(":core:core-model"))
-    implementation(project(":core:core-data"))
+    implementation(project(":core:core-database"))
     implementation(project(":core:core-network"))
     implementation(project(":core:core-common"))
 
     implementation(libs.work.runtime)
     implementation(libs.okhttp)
     implementation(libs.hilt.android)
+    implementation(libs.hilt.work)
     ksp(libs.hilt.compiler)
+    ksp(libs.hilt.work.compiler)
     implementation(libs.coroutines.core)
+    implementation(libs.coroutines.android)
     implementation(libs.core.ktx)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
 
     testImplementation(libs.work.testing)
 }

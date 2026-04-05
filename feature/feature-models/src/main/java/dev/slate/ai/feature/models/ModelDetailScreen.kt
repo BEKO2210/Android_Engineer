@@ -33,6 +33,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +51,8 @@ import dev.slate.ai.core.ui.component.SlateCard
 import dev.slate.ai.core.ui.component.SlateChipStyle
 import dev.slate.ai.core.ui.component.SlateDownloadButton
 import dev.slate.ai.core.ui.component.SlateGlowCard
+import dev.slate.ai.core.ui.component.SlateStorageWarningDialog
+import dev.slate.ai.core.database.entity.DownloadEntity
 import dev.slate.ai.core.ui.component.SlateRippleLoader
 import dev.slate.ai.core.ui.component.SlateStatusChip
 import dev.slate.ai.core.ui.component.SlateTopBar
@@ -60,6 +65,20 @@ fun ModelDetailScreen(
     viewModel: ModelDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
+    val errorEvent by viewModel.errorEvent.collectAsStateWithLifecycle()
+
+    var showStorageDialog by remember { mutableStateOf(false) }
+
+    if (errorEvent == "NOT_ENOUGH_STORAGE") {
+        SlateStorageWarningDialog(
+            requiredSize = (uiState as? ModelDetailUiState.Success)?.model?.sizeBytes?.formatFileSize() ?: "",
+            availableSize = "insufficient",
+            onDismiss = {
+                viewModel.clearError()
+            },
+        )
+    }
 
     Column(
         modifier = modifier
@@ -95,7 +114,15 @@ fun ModelDetailScreen(
             }
 
             is ModelDetailUiState.Success -> {
-                ModelDetailContent(model = state.model)
+                ModelDetailContent(
+                    model = state.model,
+                    downloadEntity = downloadState,
+                    onDownload = viewModel::startDownload,
+                    onPause = viewModel::pauseDownload,
+                    onResume = viewModel::resumeDownload,
+                    onCancel = viewModel::cancelDownload,
+                    onRetry = viewModel::retryDownload,
+                )
             }
         }
     }
@@ -105,6 +132,12 @@ fun ModelDetailScreen(
 @Composable
 private fun ModelDetailContent(
     model: LlmModel,
+    downloadEntity: DownloadEntity?,
+    onDownload: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -235,14 +268,15 @@ private fun ModelDetailContent(
             Spacer(Modifier.height(20.dp))
         }
 
-        // Download button (Phase 4 will wire this to real download engine)
+        // Download button — wired to real download engine
+        val buttonState = mapDownloadState(downloadEntity)
         SlateDownloadButton(
-            state = DownloadButtonState.NotDownloaded,
-            onDownload = { /* Phase 4 */ },
-            onPause = { },
-            onResume = { },
-            onCancel = { },
-            onRetry = { },
+            state = buttonState,
+            onDownload = onDownload,
+            onPause = onPause,
+            onResume = onResume,
+            onCancel = onCancel,
+            onRetry = onRetry,
         )
 
         Spacer(Modifier.height(32.dp))
@@ -281,4 +315,41 @@ private fun SpecRow(
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
+}
+
+private fun mapDownloadState(entity: DownloadEntity?): DownloadButtonState {
+    if (entity == null) return DownloadButtonState.NotDownloaded
+
+    return when (entity.status) {
+        "QUEUED" -> DownloadButtonState.Downloading(
+            progress = 0f,
+            downloadedSize = "Queued",
+            totalSize = formatBytes(entity.totalBytes),
+        )
+        "DOWNLOADING" -> {
+            val progress = if (entity.totalBytes > 0) {
+                entity.downloadedBytes.toFloat() / entity.totalBytes.toFloat()
+            } else 0f
+            DownloadButtonState.Downloading(
+                progress = progress,
+                downloadedSize = formatBytes(entity.downloadedBytes),
+                totalSize = formatBytes(entity.totalBytes),
+            )
+        }
+        "PAUSED" -> DownloadButtonState.Paused
+        "VERIFYING" -> DownloadButtonState.Verifying
+        "COMPLETE" -> DownloadButtonState.Completed
+        "FAILED" -> DownloadButtonState.Error(
+            message = entity.errorMessage ?: "Download failed",
+        )
+        else -> DownloadButtonState.NotDownloaded
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    val size = bytes / Math.pow(1024.0, digitGroups.toDouble())
+    return String.format("%.1f %s", size, units[digitGroups.coerceIn(0, 3)])
 }

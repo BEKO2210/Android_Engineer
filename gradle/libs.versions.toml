@@ -6,6 +6,7 @@ compose-bom = "2024.12.01"
 compose-compiler = "1.5.15"
 hilt = "2.52"
 hilt-navigation-compose = "1.2.0"
+hilt-work = "1.2.0"
 room = "2.6.1"
 datastore = "1.1.1"
 navigation-compose = "2.8.4"
@@ -42,6 +43,8 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation-compose" }
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hilt-work" }
+hilt-work-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hilt-work" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
