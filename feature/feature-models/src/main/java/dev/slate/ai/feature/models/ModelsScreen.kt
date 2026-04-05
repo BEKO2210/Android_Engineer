@@ -1,9 +1,5 @@
 package dev.slate.ai.feature.models
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -129,55 +125,49 @@ fun ModelsScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Content
-        AnimatedContent(
-            targetState = uiState,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "models_content",
-        ) { state ->
-            when (state) {
-                is ModelsUiState.Loading -> {
+        // Content — no AnimatedContent here (crashes with LazyColumn)
+        when (val state = uiState) {
+            is ModelsUiState.Loading -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(3) { ShimmerModelCard() }
+                }
+            }
+
+            is ModelsUiState.Success -> {
+                val filtered = viewModel.getFilteredModels(state.models, selectedFilter)
+                if (filtered.isEmpty()) {
+                    SlateEmptyState(
+                        icon = Icons.Default.Memory,
+                        title = "No models in this category",
+                        description = "Try selecting a different filter.",
+                    )
+                } else {
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(3) { ShimmerModelCard() }
-                    }
-                }
-
-                is ModelsUiState.Success -> {
-                    val filtered = viewModel.getFilteredModels(state.models, selectedFilter)
-                    if (filtered.isEmpty()) {
-                        SlateEmptyState(
-                            icon = Icons.Default.Memory,
-                            title = "No models in this category",
-                            description = "Try selecting a different filter.",
-                        )
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(filtered, key = { it.id }) { model ->
-                                ModelCard(
-                                    model = model,
-                                    onClick = { onModelClick(model.id) },
-                                    isCompatible = viewModel.isModelCompatible(model),
-                                    hasStorage = viewModel.hasEnoughStorage(model),
-                                )
-                            }
-                            item { Spacer(Modifier.height(16.dp)) }
+                        items(filtered, key = { it.id }) { model ->
+                            ModelCard(
+                                model = model,
+                                onClick = { onModelClick(model.id) },
+                                isCompatible = viewModel.isModelCompatible(model),
+                                hasStorage = viewModel.hasEnoughStorage(model),
+                            )
                         }
+                        item { Spacer(Modifier.height(16.dp)) }
                     }
                 }
+            }
 
-                is ModelsUiState.Error -> {
-                    SlateEmptyState(
-                        icon = Icons.Default.Storage,
-                        title = "Could not load models",
-                        description = state.message,
-                    )
-                }
+            is ModelsUiState.Error -> {
+                SlateEmptyState(
+                    icon = Icons.Default.Storage,
+                    title = "Could not load models",
+                    description = state.message,
+                )
             }
         }
     }

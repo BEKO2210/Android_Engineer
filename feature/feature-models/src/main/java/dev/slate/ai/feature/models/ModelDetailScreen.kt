@@ -148,7 +148,7 @@ private fun ModelDetailContent(
     ) {
         // Hero section with glow
         SlateGlowCard(
-            animated = true,
+            animated = false,
             glowColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
         ) {
             Column(
