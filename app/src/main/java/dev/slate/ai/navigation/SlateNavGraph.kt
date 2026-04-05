@@ -15,7 +15,9 @@ import androidx.navigation.navArgument
 import dev.slate.ai.feature.chat.ChatScreen
 import dev.slate.ai.feature.models.ModelDetailScreen
 import dev.slate.ai.feature.models.ModelsScreen
+import dev.slate.ai.feature.settings.PrivacyScreen
 import dev.slate.ai.feature.settings.SettingsScreen
+import dev.slate.ai.feature.settings.StorageScreen
 
 enum class TopLevelDestination(
     val route: String,
@@ -56,7 +58,16 @@ fun SlateNavGraph(
             )
         }
         composable(TopLevelDestination.SETTINGS.route) {
-            SettingsScreen()
+            SettingsScreen(
+                onNavigateToPrivacy = { navController.navigate("privacy") },
+                onNavigateToStorage = { navController.navigate("storage") },
+            )
+        }
+        composable("privacy") {
+            PrivacyScreen(onBack = { navController.popBackStack() })
+        }
+        composable("storage") {
+            StorageScreen(onBack = { navController.popBackStack() })
         }
     }
 }

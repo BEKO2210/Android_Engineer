@@ -31,12 +31,16 @@ android {
 dependencies {
     implementation(project(":core:core-model"))
     implementation(project(":core:core-data"))
+    implementation(project(":core:core-database"))
+    implementation(project(":core:core-datastore"))
     implementation(project(":core:core-ui"))
     implementation(project(":core:core-common"))
+    implementation(project(":download:download-engine"))
 
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.coroutines.core)
 }
