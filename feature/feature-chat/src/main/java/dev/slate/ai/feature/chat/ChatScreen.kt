@@ -324,7 +324,7 @@ private fun MessageBubble(message: ChatMessage) {
     ) {
         Column(
             modifier = Modifier
-                .then(if (isUser) Modifier.widthIn(max = 300.dp) else Modifier.fillMaxWidth())
+                .widthIn(max = if (isUser) 280.dp else 340.dp)
                 .clip(
                     RoundedCornerShape(
                         topStart = 16.dp,

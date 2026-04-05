@@ -231,46 +231,28 @@ class ChatViewModel @Inject constructor(
                 engine.generateStream(prompt).collect { token ->
                     if (shouldStop) return@collect
 
-                    // Stop if model outputs control tokens or starts simulating conversation
-                    val stopPatterns = listOf("</s>", "<|user|>", "<|system|>", "<|assistant|>",
-                        "\nUser:", "\nSystem:", "\nHuman:")
-                    for (pattern in stopPatterns) {
-                        if (streamingBuffer.toString().endsWith(pattern.dropLast(1)) &&
-                            (pattern.last().toString() == token || token.contains(pattern))) {
-                            shouldStop = true
-                            // Remove the partial stop pattern from buffer
-                            val buf = streamingBuffer.toString()
-                            for (p in stopPatterns) {
-                                if (buf.endsWith(p) || buf.contains(p)) {
-                                    streamingBuffer.clear()
-                                    streamingBuffer.append(buf.substringBefore(p))
-                                    break
-                                }
-                            }
-                            engine.stopGeneration()
-                            return@collect
-                        }
-                    }
-
                     streamingBuffer.append(token)
 
-                    // Check buffer for stop patterns after appending
+                    // Check if output contains any stop pattern
                     val current = streamingBuffer.toString()
+                    val stopPatterns = listOf(
+                        "</s>", "<|", "### Instruction:", "### Conversation:", "### Response:",
+                        "\nUser:", "\nHuman:", "\nSystem:", "\nSlate:", "\n---",
+                    )
                     for (pattern in stopPatterns) {
-                        if (current.contains(pattern)) {
+                        val idx = current.indexOf(pattern)
+                        if (idx >= 0) {
                             streamingBuffer.clear()
-                            streamingBuffer.append(current.substringBefore(pattern))
+                            streamingBuffer.append(current.substring(0, idx))
                             shouldStop = true
                             engine.stopGeneration()
                             break
                         }
                     }
 
-                    updateLastAssistantMessage(
-                        streamingBuffer.toString().trim(),
-                        isComplete = false,
-                        isStreaming = true,
-                    )
+                    // Show cleaned text during streaming
+                    val display = cleanOutput(streamingBuffer.toString())
+                    updateLastAssistantMessage(display, isComplete = false, isStreaming = true)
                 }
 
                 // Generation complete — clean up output
@@ -305,69 +287,61 @@ class ChatViewModel @Inject constructor(
     private fun buildPrompt(): String {
         val sb = StringBuilder()
 
-        // === LAYER 1: System Identity ===
-        sb.append("<|system|>\n")
-        sb.append("You are Slate, a helpful AI assistant.\n")
-        sb.append("</s>\n")
+        // Simple universal prompt format that works with all small GGUF models.
+        // No special tokens — these models don't understand <|system|> etc.
+        // Instead use a clear, structured plain-text format.
 
-        // === LAYER 2: Behavioral Rules (hidden from output) ===
-        sb.append("<|system|>\n")
-        sb.append("Rules you must follow:\n")
-        sb.append("1. Respond ONLY with your answer. Never output \"User:\" or \"Assistant:\" prefixes.\n")
-        sb.append("2. Never continue or simulate the conversation beyond your single response.\n")
-        sb.append("3. Never generate fake follow-up questions from the user.\n")
-        sb.append("4. Match the language the user writes in.\n")
-        sb.append("5. Be concise and direct. No filler phrases.\n")
-        sb.append("6. Use markdown for formatting: **bold**, *italic*, `code`, ```code blocks```.\n")
-        sb.append("7. If you don't know something, say so.\n")
-        sb.append("8. Stop generating after your answer is complete.\n")
-        sb.append("</s>\n")
+        sb.append("### Instruction:\n")
+        sb.append("You are a helpful, concise AI assistant called Slate. ")
+        sb.append("Answer the user's message directly. ")
+        sb.append("Do not simulate the user. Do not write \"User:\" or \"Assistant:\" labels. ")
+        sb.append("Reply in the same language the user uses. ")
+        sb.append("Give only ONE response, then stop.\n\n")
 
-        // === LAYER 3: Conversation History ===
+        // Conversation history — last 6 turns max
         val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
+        val recentMsgs = msgs.takeLast(6)
 
-        // Only include the last few messages to keep context manageable
-        val recentMsgs = msgs.takeLast(10)
-
-        for (msg in recentMsgs) {
-            when (msg.role) {
-                "user" -> {
-                    sb.append("<|user|>\n")
-                    sb.append(msg.content)
-                    sb.append("\n</s>\n")
-                }
-                "assistant" -> {
-                    sb.append("<|assistant|>\n")
-                    sb.append(msg.content)
-                    sb.append("\n</s>\n")
+        if (recentMsgs.isNotEmpty()) {
+            sb.append("### Conversation:\n")
+            for (msg in recentMsgs) {
+                when (msg.role) {
+                    "user" -> sb.append("User: ${msg.content}\n")
+                    "assistant" -> sb.append("Slate: ${msg.content}\n")
                 }
             }
         }
 
-        // === LAYER 4: Generation trigger ===
-        sb.append("<|assistant|>\n")
+        sb.append("\n### Response:\n")
 
         return sb.toString()
     }
 
     private fun cleanOutput(text: String): String {
         var cleaned = text
-        // Remove any control tokens that leaked through
+
+        // Remove any control tokens that may leak through
         val artifacts = listOf(
             "</s>", "<|user|>", "<|system|>", "<|assistant|>", "<|end|>",
             "<|im_start|>", "<|im_end|>", "<|endoftext|>",
+            "### Instruction:", "### Conversation:", "### Response:",
         )
         for (artifact in artifacts) {
             cleaned = cleaned.replace(artifact, "")
         }
-        // Remove simulated conversation continuations
-        val cutPatterns = listOf("\nUser:", "\nHuman:", "\nSystem:", "\nAssistant:")
+
+        // Cut at any simulated conversation continuation
+        val cutPatterns = listOf(
+            "\nUser:", "\nHuman:", "\nSystem:", "\nAssistant:", "\nSlate:",
+            "\n### ", "\n---",
+        )
         for (pattern in cutPatterns) {
             val idx = cleaned.indexOf(pattern)
             if (idx > 0) {
                 cleaned = cleaned.substring(0, idx)
             }
         }
+
         return cleaned.trim()
     }
 
