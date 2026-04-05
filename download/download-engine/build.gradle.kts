@@ -41,5 +41,6 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
 
+    testImplementation(libs.junit)
     testImplementation(libs.work.testing)
 }

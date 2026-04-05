@@ -22,5 +22,6 @@ android {
 }
 
 dependencies {
+    testImplementation(libs.junit)
     // Pure domain models — minimal dependencies
 }

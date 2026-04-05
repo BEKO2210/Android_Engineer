@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.slate.ai.core.data.repository.ChatRepository
+import dev.slate.ai.core.datastore.SlatePreferences
 import dev.slate.ai.core.database.entity.MessageEntity
 import dev.slate.ai.download.engine.ModelDownloadManager
 import dev.slate.ai.inference.llamacpp.InferenceParams
@@ -33,6 +34,7 @@ class ChatViewModel @Inject constructor(
     private val engine: LlamaCppEngine,
     private val chatRepository: ChatRepository,
     private val downloadManager: ModelDownloadManager,
+    private val preferences: SlatePreferences,
 ) : ViewModel() {
 
     val inferenceState: StateFlow<InferenceState> = engine.state
@@ -52,6 +54,7 @@ class ChatViewModel @Inject constructor(
     private var generationJob: Job? = null
     private var currentAssistantMessageId: String? = null
     private var streamingBuffer = StringBuilder()
+    private var chatHistoryEnabled = true
 
     fun updateInput(text: String) {
         _inputText.value = text
@@ -91,21 +94,43 @@ class ChatViewModel @Inject constructor(
         if (text.isEmpty()) return
         if (inferenceState.value !is InferenceState.Ready) return
 
+        // Check if the model file still exists (may have been deleted from storage screen)
+        currentModelId?.let { modelId ->
+            viewModelScope.launch {
+                val file = downloadManager.getModelFile(modelId)
+                if (file == null) {
+                    _statusMessage.value = "Model file was deleted. Please reload or download again."
+                    engine.unload()
+                    return@launch
+                }
+                doSendMessage(text)
+            }
+        } ?: viewModelScope.launch { doSendMessage(text) }
+    }
+
+    private suspend fun doSendMessage(text: String) {
         _inputText.value = ""
 
+        chatHistoryEnabled = preferences.isChatHistoryEnabled.first()
+        val shouldPersist = chatHistoryEnabled
+
         viewModelScope.launch {
-            // Create conversation if needed
-            if (conversationId == null) {
+            // Create conversation if needed (only if persisting)
+            if (shouldPersist && conversationId == null) {
                 conversationId = chatRepository.createConversation(
                     modelId = currentModelId ?: "unknown",
                     title = text.take(50),
                 )
             }
 
-            val convId = conversationId ?: return@launch
+            val convId = conversationId
 
             // Add user message
-            val userMsgId = chatRepository.addUserMessage(convId, text)
+            val userMsgId = if (shouldPersist && convId != null) {
+                chatRepository.addUserMessage(convId, text)
+            } else {
+                java.util.UUID.randomUUID().toString()
+            }
             addMessageToUi(ChatMessage(userMsgId, "user", text, true))
 
             // Start generation
@@ -122,8 +147,10 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             currentAssistantMessageId?.let { msgId ->
                 val content = streamingBuffer.toString()
-                chatRepository.updateMessageContent(msgId, content)
-                chatRepository.markMessageComplete(msgId)
+                if (chatHistoryEnabled && conversationId != null) {
+                    chatRepository.updateMessageContent(msgId, content)
+                    chatRepository.markMessageComplete(msgId)
+                }
                 updateLastAssistantMessage(content, isComplete = true, isStreaming = false)
             }
             currentAssistantMessageId = null
@@ -133,18 +160,19 @@ class ChatViewModel @Inject constructor(
 
     fun regenerate() {
         if (inferenceState.value !is InferenceState.Ready) return
-        val convId = conversationId ?: return
 
         viewModelScope.launch {
-            // Remove last assistant message
-            val lastAssistant = chatRepository.getLastAssistantMessage(convId)
+            // Remove last assistant message from UI
+            val lastAssistant = _messages.value.lastOrNull { it.role == "assistant" }
             if (lastAssistant != null) {
-                chatRepository.deleteMessage(lastAssistant.id)
+                if (chatHistoryEnabled && conversationId != null) {
+                    chatRepository.deleteMessage(lastAssistant.id)
+                }
                 _messages.value = _messages.value.filter { it.id != lastAssistant.id }
             }
 
             // Re-generate
-            startGeneration(convId, buildPrompt())
+            startGeneration(conversationId, buildPrompt())
         }
     }
 
@@ -166,12 +194,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun startGeneration(convId: String, prompt: String) {
+    private fun startGeneration(convId: String?, prompt: String) {
         generationJob?.cancel()
+        val persist = chatHistoryEnabled && convId != null
 
         generationJob = viewModelScope.launch {
             // Add placeholder assistant message
-            val assistantMsgId = chatRepository.addAssistantMessage(convId)
+            val assistantMsgId = if (persist) {
+                chatRepository.addAssistantMessage(convId!!)
+            } else {
+                java.util.UUID.randomUUID().toString()
+            }
             currentAssistantMessageId = assistantMsgId
             streamingBuffer.clear()
 
@@ -190,19 +223,23 @@ class ChatViewModel @Inject constructor(
 
                 // Generation complete
                 val finalContent = streamingBuffer.toString()
-                chatRepository.updateMessageContent(assistantMsgId, finalContent)
-                chatRepository.markMessageComplete(assistantMsgId)
+                if (persist) {
+                    chatRepository.updateMessageContent(assistantMsgId, finalContent)
+                    chatRepository.markMessageComplete(assistantMsgId)
+                }
                 updateLastAssistantMessage(finalContent, isComplete = true, isStreaming = false)
                 _statusMessage.value = "Done"
 
             } catch (e: Exception) {
                 val partial = streamingBuffer.toString()
                 if (partial.isNotEmpty()) {
-                    chatRepository.updateMessageContent(assistantMsgId, partial)
-                    chatRepository.markMessageComplete(assistantMsgId)
+                    if (persist) {
+                        chatRepository.updateMessageContent(assistantMsgId, partial)
+                        chatRepository.markMessageComplete(assistantMsgId)
+                    }
                     updateLastAssistantMessage(partial, isComplete = true, isStreaming = false)
                 } else {
-                    chatRepository.deleteMessage(assistantMsgId)
+                    if (persist) chatRepository.deleteMessage(assistantMsgId)
                     _messages.value = _messages.value.filter { it.id != assistantMsgId }
                 }
                 _statusMessage.value = "Error: ${e.message}"

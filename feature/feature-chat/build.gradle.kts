@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":core:core-database"))
     implementation(project(":core:core-ui"))
     implementation(project(":core:core-common"))
+    implementation(project(":core:core-datastore"))
     implementation(project(":inference:inference-llamacpp"))
     implementation(project(":download:download-engine"))
     implementation(libs.coroutines.core)
