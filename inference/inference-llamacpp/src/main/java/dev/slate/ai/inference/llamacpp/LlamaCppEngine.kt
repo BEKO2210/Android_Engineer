@@ -4,11 +4,12 @@ import android.app.ActivityManager
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -55,11 +56,8 @@ class LlamaCppEngine @Inject constructor(
     private val _state = MutableStateFlow<InferenceState>(InferenceState.Idle)
     val state: StateFlow<InferenceState> = _state.asStateFlow()
 
-    /**
-     * Load a GGUF model from the given file path.
-     * Performs a memory check before loading.
-     * Unloads any previously loaded model first.
-     */
+    private var loadedModelPath: String? = null
+
     suspend fun loadModel(
         modelPath: String,
         params: ModelLoadParams = ModelLoadParams(),
@@ -71,7 +69,6 @@ class LlamaCppEngine @Inject constructor(
                 return@withContext Result.failure(Exception("Model file not found: $modelPath"))
             }
 
-            // Memory check: require ~1.3x file size available
             val fileSizeMb = file.length() / (1024 * 1024)
             val requiredMb = (fileSizeMb * 1.3).toLong()
             val availableMb = getAvailableMemoryMb()
@@ -84,7 +81,6 @@ class LlamaCppEngine @Inject constructor(
 
             _state.value = InferenceState.Loading
 
-            // Unload existing model
             if (LlamaCppNative.isModelLoaded()) {
                 LlamaCppNative.unloadModel()
             }
@@ -102,6 +98,7 @@ class LlamaCppEngine @Inject constructor(
                 return@withContext Result.failure(Exception("Native model load returned 0"))
             }
 
+            loadedModelPath = modelPath
             _state.value = InferenceState.Ready(modelPath)
             Result.success(Unit)
 
@@ -115,9 +112,57 @@ class LlamaCppEngine @Inject constructor(
     }
 
     /**
-     * Generate text from a prompt. Returns the complete generated text.
-     * Blocks the calling coroutine until generation is complete.
+     * Streaming generation: emits each token as it's produced.
+     * Collects the Flow to receive tokens. The Flow completes when generation finishes.
      */
+    fun generateStream(
+        prompt: String,
+        params: InferenceParams = InferenceParams(),
+    ): Flow<String> = callbackFlow {
+        if (!LlamaCppNative.isModelLoaded()) {
+            close(Exception("No model loaded"))
+            return@callbackFlow
+        }
+
+        _state.value = InferenceState.Generating
+
+        try {
+            val callback = object : TokenCallback {
+                override fun onToken(token: String) {
+                    trySend(token)
+                }
+            }
+
+            LlamaCppNative.startCompletionWithCallback(
+                prompt = prompt,
+                maxTokens = params.maxTokens,
+                temperature = params.temperature,
+                topP = params.topP,
+                topK = params.topK,
+                repeatPenalty = params.repeatPenalty,
+                callback = callback,
+            )
+
+            // Restore state after generation completes
+            if (_state.value is InferenceState.Generating) {
+                _state.value = InferenceState.Ready(loadedModelPath ?: "")
+            }
+
+            close()
+        } catch (e: Exception) {
+            _state.value = InferenceState.Error("Generation failed: ${e.message.orEmpty()}")
+            close(e)
+        }
+
+        awaitClose {
+            // If the collector cancels, stop generation
+            if (LlamaCppNative.isGenerating()) {
+                LlamaCppNative.stopGeneration()
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /** Non-streaming generation (returns full text). */
     suspend fun generate(
         prompt: String,
         params: InferenceParams = InferenceParams(),
@@ -125,10 +170,8 @@ class LlamaCppEngine @Inject constructor(
         if (!LlamaCppNative.isModelLoaded()) {
             return@withContext Result.failure(Exception("No model loaded"))
         }
-
         try {
             _state.value = InferenceState.Generating
-
             val result = LlamaCppNative.startCompletion(
                 prompt = prompt,
                 maxTokens = params.maxTokens,
@@ -137,79 +180,37 @@ class LlamaCppEngine @Inject constructor(
                 topK = params.topK,
                 repeatPenalty = params.repeatPenalty,
             )
-
-            // Restore ready state
-            val currentState = _state.value
-            if (currentState is InferenceState.Generating) {
-                _state.value = InferenceState.Ready(
-                    (state.value as? InferenceState.Ready)?.modelPath ?: ""
-                )
-            }
-
-            if (result.startsWith("[ERROR:")) {
-                return@withContext Result.failure(Exception(result))
-            }
-
-            Result.success(result)
-
+            _state.value = InferenceState.Ready(loadedModelPath ?: "")
+            if (result.startsWith("[ERROR:")) Result.failure(Exception(result))
+            else Result.success(result)
         } catch (e: Exception) {
             _state.value = InferenceState.Error("Generation failed: ${e.message.orEmpty()}")
             Result.failure(e)
         }
     }
 
-    /**
-     * Request the current generation to stop.
-     */
     fun stopGeneration() {
         if (LlamaCppNative.isGenerating()) {
             LlamaCppNative.stopGeneration()
         }
     }
 
-    /**
-     * Unload the current model and free all native resources.
-     */
     suspend fun unload() = withContext(Dispatchers.IO) {
         try {
             LlamaCppNative.unloadModel()
+            loadedModelPath = null
             _state.value = InferenceState.Idle
         } catch (e: Exception) {
             _state.value = InferenceState.Error("Unload failed: ${e.message.orEmpty()}")
         }
     }
 
-    /**
-     * Check if a model is currently loaded.
-     */
-    fun isModelLoaded(): Boolean {
-        return try {
-            LlamaCppNative.isModelLoaded()
-        } catch (e: UnsatisfiedLinkError) {
-            false
-        }
-    }
+    fun isModelLoaded(): Boolean = try { LlamaCppNative.isModelLoaded() } catch (_: UnsatisfiedLinkError) { false }
 
-    /**
-     * Get available system memory in MB.
-     */
     private fun getAvailableMemoryMb(): Long {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memInfo)
+        am.getMemoryInfo(memInfo)
         return memInfo.availMem / (1024 * 1024)
-    }
-
-    /**
-     * Get device memory info for UI display.
-     */
-    fun getDeviceMemoryInfo(): Pair<Long, Long> {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val memInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memInfo)
-        return Pair(
-            memInfo.availMem / (1024 * 1024),
-            memInfo.totalMem / (1024 * 1024),
-        )
     }
 }

@@ -36,6 +36,7 @@ dependencies {
     implementation(project(":core:core-common"))
     implementation(project(":inference:inference-llamacpp"))
     implementation(project(":download:download-engine"))
+    implementation(libs.coroutines.core)
 
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
