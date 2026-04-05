@@ -8,14 +8,21 @@ plugins {
 android {
     namespace = "dev.slate.ai.inference.llamacpp"
     compileSdk = 35
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         minSdk = 26
 
         ndk {
             // MVP: arm64-v8a only (covers ~95% of active devices)
-            // Post-MVP: add armeabi-v7a and x86_64
             abiFilters += "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=c++_shared"
+                cppFlags += "-std=c++17"
+            }
         }
     }
 
@@ -28,12 +35,12 @@ android {
         jvmTarget = "17"
     }
 
-    // Native build will be configured in Phase 5
-    // externalNativeBuild {
-    //     cmake {
-    //         path = file("src/main/cpp/CMakeLists.txt")
-    //     }
-    // }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
@@ -43,4 +50,6 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.coroutines.core)
+    implementation(libs.coroutines.android)
+    implementation(libs.core.ktx)
 }
