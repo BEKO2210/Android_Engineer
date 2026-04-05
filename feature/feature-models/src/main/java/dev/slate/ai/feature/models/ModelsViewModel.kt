@@ -8,12 +8,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.slate.ai.core.common.DeviceCapability
 import dev.slate.ai.core.common.DeviceInfo
 import dev.slate.ai.core.data.repository.ModelRepository
+import dev.slate.ai.core.database.entity.DownloadEntity
 import dev.slate.ai.core.model.LlmModel
 import dev.slate.ai.core.model.ModelTier
+import dev.slate.ai.download.engine.ModelDownloadManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,6 +25,7 @@ import javax.inject.Inject
 class ModelsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val modelRepository: ModelRepository,
+    private val downloadManager: ModelDownloadManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ModelsUiState>(ModelsUiState.Loading)
@@ -30,6 +35,11 @@ class ModelsViewModel @Inject constructor(
     val selectedFilter: StateFlow<ModelTier?> = _selectedFilter.asStateFlow()
 
     val deviceInfo: DeviceInfo = DeviceCapability.getDeviceInfo(context)
+
+    // Track all download states to show checkmarks
+    val allDownloads: StateFlow<List<DownloadEntity>> = downloadManager
+        .observeAllDownloads()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         loadModels()
@@ -60,6 +70,10 @@ class ModelsViewModel @Inject constructor(
 
     fun hasEnoughStorage(model: LlmModel): Boolean {
         return (deviceInfo.availableStorageMb * 1024 * 1024) >= (model.sizeBytes * 1.1).toLong()
+    }
+
+    fun isModelDownloaded(modelId: String, downloads: List<DownloadEntity>): Boolean {
+        return downloads.any { it.modelId == modelId && it.status == "COMPLETE" }
     }
 }
 

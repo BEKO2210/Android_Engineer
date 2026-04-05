@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Storage
@@ -30,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,7 @@ fun ModelsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
+    val allDownloads by viewModel.allDownloads.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -155,6 +158,7 @@ fun ModelsScreen(
                                 onClick = { onModelClick(model.id) },
                                 isCompatible = viewModel.isModelCompatible(model),
                                 hasStorage = viewModel.hasEnoughStorage(model),
+                                isDownloaded = viewModel.isModelDownloaded(model.id, allDownloads),
                             )
                         }
                         item { Spacer(Modifier.height(16.dp)) }
@@ -180,6 +184,7 @@ private fun ModelCard(
     modifier: Modifier = Modifier,
     isCompatible: Boolean = true,
     hasStorage: Boolean = true,
+    isDownloaded: Boolean = false,
 ) {
     SlateGlowCard(
         modifier = modifier,
@@ -239,6 +244,15 @@ private fun ModelCard(
                         ModelTier.HEAVY -> SlateChipStyle.WARNING
                     },
                 )
+                if (isDownloaded) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Downloaded",
+                        tint = Color(0xFF81C784),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

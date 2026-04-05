@@ -58,13 +58,20 @@ fun ChatScreen(
     val inferenceState by viewModel.inferenceState.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
+    val downloadedModels by viewModel.downloadedModels.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    // Auto-scroll when new content arrives
-    LaunchedEffect(messages.lastOrNull()?.content?.length) {
+    // Auto-scroll to bottom when new content arrives during streaming
+    val lastMessageContent = messages.lastOrNull()?.content?.length ?: 0
+    val isStreaming = messages.lastOrNull()?.isStreaming == true
+    LaunchedEffect(lastMessageContent, messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            // Scroll to the last item and push it as far up as possible
+            listState.animateScrollToItem(
+                index = messages.size - 1,
+                scrollOffset = if (isStreaming) Int.MAX_VALUE / 2 else 0,
+            )
         }
     }
 
@@ -110,7 +117,10 @@ fun ChatScreen(
         Box(modifier = Modifier.weight(1f)) {
             when {
                 inferenceState is InferenceState.Idle -> {
-                    IdleState(onLoadModel = viewModel::loadModel)
+                    IdleState(
+                        downloadedModels = downloadedModels,
+                        onLoadModel = viewModel::loadModel,
+                    )
                 }
                 inferenceState is InferenceState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -229,7 +239,10 @@ fun ChatScreen(
 }
 
 @Composable
-private fun IdleState(onLoadModel: (String) -> Unit) {
+private fun IdleState(
+    downloadedModels: List<DownloadedModelInfo>,
+    onLoadModel: (String) -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -247,20 +260,42 @@ private fun IdleState(onLoadModel: (String) -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(32.dp))
-        SlatePrimaryButton(
-            text = "Load SmolLM2 1.7B",
-            onClick = { onLoadModel("smollm2-1.7b-q4") },
-        )
-        Spacer(Modifier.height(8.dp))
-        SlateTextButton(
-            text = "Load Qwen 2.5 3B",
-            onClick = { onLoadModel("qwen-2.5-3b-q4") },
-        )
-        Spacer(Modifier.height(8.dp))
-        SlateTextButton(
-            text = "Load Phi-3 Mini",
-            onClick = { onLoadModel("phi-3-mini-q4") },
-        )
+
+        if (downloadedModels.isEmpty()) {
+            Text(
+                text = "No models downloaded yet",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Go to the Models tab to download one.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Text(
+                text = "Select a model to start",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(16.dp))
+            downloadedModels.forEachIndexed { index, model ->
+                if (index == 0) {
+                    SlatePrimaryButton(
+                        text = "Load ${model.name}",
+                        onClick = { onLoadModel(model.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Spacer(Modifier.height(8.dp))
+                    SlateTextButton(
+                        text = "Load ${model.name}",
+                        onClick = { onLoadModel(model.id) },
+                    )
+                }
+            }
+        }
     }
 }
 
