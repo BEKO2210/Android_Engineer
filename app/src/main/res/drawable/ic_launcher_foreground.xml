@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Slate "S" letter mark -->
+    <path
+        android:fillColor="#A8C4D4"
+        android:pathData="M54,30
+            C44,30 36,36 36,44
+            C36,52 44,54 54,56
+            C64,58 72,60 72,68
+            C72,76 64,82 54,82
+            C44,82 36,76 36,68"
+        android:strokeWidth="5"
+        android:strokeColor="#A8C4D4"
+        android:fillType="nonZero" />
+</vector>
