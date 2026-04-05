@@ -5,7 +5,6 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -77,10 +76,8 @@ class ModelDownloadManager @Inject constructor(
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .setRequiresStorageNotLow(true)
                     .build()
             )
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag("download_${model.id}")
             .build()
 
@@ -218,10 +215,8 @@ class ModelDownloadManager @Inject constructor(
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .setRequiresStorageNotLow(true)
                     .build()
             )
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag("download_${model.id}")
             .build()
 
