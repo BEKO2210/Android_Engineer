@@ -30,10 +30,14 @@ object DeviceCapability {
         val availableRamMb = memInfo.availMem / (1024 * 1024)
         val cpuCores = Runtime.getRuntime().availableProcessors()
 
-        val storagePath = context.getExternalFilesDir(null)?.absolutePath
-            ?: context.filesDir.absolutePath
-        val stat = StatFs(storagePath)
-        val availableStorageMb = (stat.availableBlocksLong * stat.blockSizeLong) / (1024 * 1024)
+        val availableStorageMb = try {
+            val storagePath = context.getExternalFilesDir(null)?.absolutePath
+                ?: context.filesDir.absolutePath
+            val stat = StatFs(storagePath)
+            (stat.availableBlocksLong * stat.blockSizeLong) / (1024 * 1024)
+        } catch (e: Exception) {
+            0L
+        }
 
         val tier = when {
             totalRamMb < 4096 -> DeviceTier.LOW
