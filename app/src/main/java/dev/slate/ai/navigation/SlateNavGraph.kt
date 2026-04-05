@@ -1,5 +1,9 @@
 package dev.slate.ai.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Download
@@ -31,13 +35,15 @@ enum class TopLevelDestination(
     SETTINGS(route = "settings", icon = Icons.Default.Settings, label = "Settings"),
 }
 
+private const val FADE_MS = 200
+private const val SLIDE_MS = 300
+
 @Composable
 fun SlateNavGraph(
     navController: NavHostController,
     isOnboardingComplete: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    // startDestination must be stable — compute once and remember
     val startDestination = remember {
         if (isOnboardingComplete) TopLevelDestination.CHAT.route else "onboarding"
     }
@@ -46,6 +52,11 @@ fun SlateNavGraph(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
+        // Smooth fade for top-level tab switches
+        enterTransition = { fadeIn(tween(FADE_MS)) },
+        exitTransition = { fadeOut(tween(FADE_MS)) },
+        popEnterTransition = { fadeIn(tween(FADE_MS)) },
+        popExitTransition = { fadeOut(tween(FADE_MS)) },
     ) {
         composable("onboarding") {
             OnboardingScreen(
@@ -66,9 +77,14 @@ fun SlateNavGraph(
                 },
             )
         }
+        // Detail screens slide in from right
         composable(
             route = "models/{modelId}",
             arguments = listOf(navArgument("modelId") { type = NavType.StringType }),
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(SLIDE_MS)) },
+            exitTransition = { fadeOut(tween(FADE_MS)) },
+            popEnterTransition = { fadeIn(tween(FADE_MS)) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(SLIDE_MS)) },
         ) {
             ModelDetailScreen(
                 onBack = { navController.popBackStack() },
@@ -80,10 +96,18 @@ fun SlateNavGraph(
                 onNavigateToStorage = { navController.navigate("storage") },
             )
         }
-        composable("privacy") {
+        composable(
+            "privacy",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(SLIDE_MS)) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(SLIDE_MS)) },
+        ) {
             PrivacyScreen(onBack = { navController.popBackStack() })
         }
-        composable("storage") {
+        composable(
+            "storage",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(SLIDE_MS)) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(SLIDE_MS)) },
+        ) {
             StorageScreen(onBack = { navController.popBackStack() })
         }
     }

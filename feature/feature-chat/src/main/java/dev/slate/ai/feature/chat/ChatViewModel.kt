@@ -236,8 +236,9 @@ class ChatViewModel @Inject constructor(
                     // Check if output contains any stop pattern
                     val current = streamingBuffer.toString()
                     val stopPatterns = listOf(
-                        "</s>", "<|", "### Instruction:", "### Conversation:", "### Response:",
-                        "\nUser:", "\nHuman:", "\nSystem:", "\nSlate:", "\n---",
+                        "<|im_end|>", "<|im_start|>", "<|end|>", "<|user|>", "<|system|>",
+                        "</s>", "<|endoftext|>",
+                        "\nUser:", "\nHuman:", "\nSystem:",
                     )
                     for (pattern in stopPatterns) {
                         val idx = current.indexOf(pattern)
@@ -286,66 +287,101 @@ class ChatViewModel @Inject constructor(
 
     private fun buildPrompt(): String {
         val sb = StringBuilder()
+        val modelId = currentModelId ?: ""
 
-        // Simple universal prompt — short, works with all small GGUF models
-        sb.append("### Instruction:\n")
-        sb.append("You are Slate, a helpful AI assistant. ")
-        sb.append("Answer directly and concisely. Do not simulate the user. ")
-        sb.append("Reply in the user's language. Give ONE response, then stop.\n\n")
+        // Use the correct chat template per model family
+        val isPhi = modelId.contains("phi", ignoreCase = true)
 
-        // Conversation history — keep it SHORT to avoid context overflow
-        // Small models have 2048 token context. Reserve ~400 tokens for response.
-        // Each token ≈ 4 chars. Budget: ~1600 tokens ≈ 6400 chars for prompt.
-        val maxPromptChars = 5000
-        val instructionLength = sb.length
+        // Qwen and SmolLM2 use <|im_start|>/<|im_end|>, Phi uses <|role|>/<|end|>
+        if (isPhi) {
+            buildPhiPrompt(sb)
+        } else {
+            buildImPrompt(sb)  // Works for Qwen, SmolLM2, Llama
+        }
 
+        return sb.toString()
+    }
+
+    /** Qwen / SmolLM2 / Llama chat template */
+    private fun buildImPrompt(sb: StringBuilder) {
+        sb.append("<|im_start|>system\n")
+        sb.append("You are Slate, a helpful and concise AI assistant. ")
+        sb.append("Answer directly. Be concise. Use the same language as the user.")
+        sb.append("<|im_end|>\n")
+
+        appendHistory(sb, "<|im_start|>user\n", "<|im_end|>\n", "<|im_start|>assistant\n", "<|im_end|>\n")
+
+        sb.append("<|im_start|>assistant\n")
+    }
+
+    /** Phi-3 chat template */
+    private fun buildPhiPrompt(sb: StringBuilder) {
+        sb.append("<|system|>\nYou are Slate, a helpful and concise AI assistant. ")
+        sb.append("Answer directly. Be concise. Use the same language as the user.<|end|>\n")
+
+        appendHistory(sb, "<|user|>\n", "<|end|>\n", "<|assistant|>\n", "<|end|>\n")
+
+        sb.append("<|assistant|>\n")
+    }
+
+    private fun appendHistory(
+        sb: StringBuilder,
+        userStart: String, userEnd: String,
+        assistantStart: String, assistantEnd: String,
+    ) {
+        val maxPromptChars = 4000
         val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
 
-        // Build history from most recent, stop when budget exceeded
         val historyLines = mutableListOf<String>()
         var historyChars = 0
+
         for (msg in msgs.reversed()) {
-            val prefix = if (msg.role == "user") "User" else "Slate"
-            // Truncate long messages to 500 chars in history
-            val content = msg.content.take(500)
-            val line = "$prefix: $content\n"
-            if (historyChars + line.length + instructionLength > maxPromptChars) break
+            val content = msg.content.take(400)
+            val line = when (msg.role) {
+                "user" -> "$userStart$content$userEnd"
+                "assistant" -> "$assistantStart$content$assistantEnd"
+                else -> continue
+            }
+            if (historyChars + line.length + sb.length > maxPromptChars) break
             historyLines.add(0, line)
             historyChars += line.length
         }
 
-        if (historyLines.isNotEmpty()) {
-            sb.append("### Conversation:\n")
-            historyLines.forEach { sb.append(it) }
-        }
-
-        sb.append("\n### Response:\n")
-
-        return sb.toString()
+        historyLines.forEach { sb.append(it) }
     }
 
     private fun cleanOutput(text: String): String {
         var cleaned = text
 
-        // Remove any control tokens that may leak through
+        // Remove control tokens from all model families
         val artifacts = listOf(
-            "</s>", "<|user|>", "<|system|>", "<|assistant|>", "<|end|>",
-            "<|im_start|>", "<|im_end|>", "<|endoftext|>",
+            "<|im_start|>", "<|im_end|>",
+            "<|system|>", "<|user|>", "<|assistant|>", "<|end|>",
+            "</s>", "<|endoftext|>",
             "### Instruction:", "### Conversation:", "### Response:",
         )
         for (artifact in artifacts) {
             cleaned = cleaned.replace(artifact, "")
         }
 
-        // Cut at any simulated conversation continuation
+        // Cut at simulated conversation
         val cutPatterns = listOf(
             "\nUser:", "\nHuman:", "\nSystem:", "\nAssistant:", "\nSlate:",
-            "\n### ", "\n---",
+            "\n### ", "\n<|im_start|>", "\n<|user|>", "\n<|system|>",
         )
         for (pattern in cutPatterns) {
             val idx = cleaned.indexOf(pattern)
             if (idx > 0) {
                 cleaned = cleaned.substring(0, idx)
+            }
+        }
+
+        // Remove role labels at the very start
+        cleaned = cleaned.trimStart()
+        val startLabels = listOf("assistant\n", "system\n", "user\n")
+        for (label in startLabels) {
+            if (cleaned.startsWith(label)) {
+                cleaned = cleaned.removePrefix(label)
             }
         }
 
