@@ -1,6 +1,12 @@
 # Slate
 
-**v1.0.0** — Private AI on your device. Download and run local LLMs entirely offline.
+<p align="center">
+  <img src="app/src/main/assets/Icon_logo.png" width="128" alt="Slate Logo" />
+</p>
+
+<p align="center">
+  <strong>v1.0.0</strong> — Private AI on your device. Download and run local LLMs entirely offline.
+</p>
 
 ## What is Slate?
 
