@@ -1,6 +1,6 @@
 # Slate
 
-Private AI on your device. Download and run local LLMs entirely offline.
+**v1.0.0** — Private AI on your device. Download and run local LLMs entirely offline.
 
 ## What is Slate?
 

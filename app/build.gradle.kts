@@ -13,20 +13,44 @@ android {
     defaultConfig {
         applicationId = "dev.slate.ai"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            // MVP scope: arm64-v8a only
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    signingConfigs {
+        // Release signing: create a keystore and configure here before publishing.
+        // See RELEASE.md for instructions.
+        // create("release") {
+        //     storeFile = file("keystore/slate-release.jks")
+        //     storePassword = System.getenv("SLATE_KEYSTORE_PASSWORD") ?: ""
+        //     keyAlias = "slate"
+        //     keyPassword = System.getenv("SLATE_KEY_PASSWORD") ?: ""
+        // }
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            isDebuggable = true
+        }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // To sign release builds, uncomment signingConfig after creating keystore:
+            // signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -41,6 +65,13 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 
