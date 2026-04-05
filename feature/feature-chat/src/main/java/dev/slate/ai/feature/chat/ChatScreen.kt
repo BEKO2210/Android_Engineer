@@ -139,6 +139,38 @@ fun ChatScreen(
                         SlateRippleLoader(label = "Loading model")
                     }
                 }
+                inferenceState is InferenceState.Error -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.ChatBubble,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(48.dp),
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "Model could not be loaded",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = (inferenceState as InferenceState.Error).message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        SlatePrimaryButton(
+                            text = "Unload and retry",
+                            onClick = { viewModel.unloadModel() },
+                        )
+                    }
+                }
                 messages.isEmpty() && inferenceState is InferenceState.Ready -> {
                     SlateEmptyState(
                         icon = Icons.Default.ChatBubble,
