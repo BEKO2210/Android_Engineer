@@ -161,7 +161,7 @@ class ChatViewModel @Inject constructor(
         // Mark current assistant message as complete with whatever we have
         viewModelScope.launch {
             currentAssistantMessageId?.let { msgId ->
-                val content = streamingBuffer.toString()
+                val content = cleanOutput(streamingBuffer.toString())
                 if (chatHistoryEnabled && conversationId != null) {
                     chatRepository.updateMessageContent(msgId, content)
                     chatRepository.markMessageComplete(msgId)
@@ -227,17 +227,54 @@ class ChatViewModel @Inject constructor(
             _statusMessage.value = "Generating..."
 
             try {
+                var shouldStop = false
                 engine.generateStream(prompt).collect { token ->
+                    if (shouldStop) return@collect
+
+                    // Stop if model outputs control tokens or starts simulating conversation
+                    val stopPatterns = listOf("</s>", "<|user|>", "<|system|>", "<|assistant|>",
+                        "\nUser:", "\nSystem:", "\nHuman:")
+                    for (pattern in stopPatterns) {
+                        if (streamingBuffer.toString().endsWith(pattern.dropLast(1)) &&
+                            (pattern.last().toString() == token || token.contains(pattern))) {
+                            shouldStop = true
+                            // Remove the partial stop pattern from buffer
+                            val buf = streamingBuffer.toString()
+                            for (p in stopPatterns) {
+                                if (buf.endsWith(p) || buf.contains(p)) {
+                                    streamingBuffer.clear()
+                                    streamingBuffer.append(buf.substringBefore(p))
+                                    break
+                                }
+                            }
+                            engine.stopGeneration()
+                            return@collect
+                        }
+                    }
+
                     streamingBuffer.append(token)
+
+                    // Check buffer for stop patterns after appending
+                    val current = streamingBuffer.toString()
+                    for (pattern in stopPatterns) {
+                        if (current.contains(pattern)) {
+                            streamingBuffer.clear()
+                            streamingBuffer.append(current.substringBefore(pattern))
+                            shouldStop = true
+                            engine.stopGeneration()
+                            break
+                        }
+                    }
+
                     updateLastAssistantMessage(
-                        streamingBuffer.toString(),
+                        streamingBuffer.toString().trim(),
                         isComplete = false,
                         isStreaming = true,
                     )
                 }
 
-                // Generation complete
-                val finalContent = streamingBuffer.toString()
+                // Generation complete — clean up output
+                val finalContent = cleanOutput(streamingBuffer.toString())
                 if (persist) {
                     chatRepository.updateMessageContent(assistantMsgId, finalContent)
                     chatRepository.markMessageComplete(assistantMsgId)
@@ -246,7 +283,7 @@ class ChatViewModel @Inject constructor(
                 _statusMessage.value = "Done"
 
             } catch (e: Exception) {
-                val partial = streamingBuffer.toString()
+                val partial = cleanOutput(streamingBuffer.toString())
                 if (partial.isNotEmpty()) {
                     if (persist) {
                         chatRepository.updateMessageContent(assistantMsgId, partial)
@@ -268,29 +305,70 @@ class ChatViewModel @Inject constructor(
     private fun buildPrompt(): String {
         val sb = StringBuilder()
 
-        // System prompt
-        sb.append("""System: You are Slate, a helpful, concise, and friendly AI assistant running locally on the user's device. Follow these rules:
-- Answer clearly and directly
-- Be concise. Avoid unnecessary filler
-- Use paragraphs for readability
-- When showing code, use markdown code blocks
-- If you don't know something, say so honestly
-- Never pretend to access the internet, files, or external services
-- Respond in the same language the user writes in
-- Be warm but professional
+        // === LAYER 1: System Identity ===
+        sb.append("<|system|>\n")
+        sb.append("You are Slate, a helpful AI assistant.\n")
+        sb.append("</s>\n")
 
-""")
+        // === LAYER 2: Behavioral Rules (hidden from output) ===
+        sb.append("<|system|>\n")
+        sb.append("Rules you must follow:\n")
+        sb.append("1. Respond ONLY with your answer. Never output \"User:\" or \"Assistant:\" prefixes.\n")
+        sb.append("2. Never continue or simulate the conversation beyond your single response.\n")
+        sb.append("3. Never generate fake follow-up questions from the user.\n")
+        sb.append("4. Match the language the user writes in.\n")
+        sb.append("5. Be concise and direct. No filler phrases.\n")
+        sb.append("6. Use markdown for formatting: **bold**, *italic*, `code`, ```code blocks```.\n")
+        sb.append("7. If you don't know something, say so.\n")
+        sb.append("8. Stop generating after your answer is complete.\n")
+        sb.append("</s>\n")
 
-        // Conversation history
+        // === LAYER 3: Conversation History ===
         val msgs = _messages.value.filter { it.isComplete || it.role == "user" }
-        for (msg in msgs) {
+
+        // Only include the last few messages to keep context manageable
+        val recentMsgs = msgs.takeLast(10)
+
+        for (msg in recentMsgs) {
             when (msg.role) {
-                "user" -> sb.append("User: ${msg.content}\n")
-                "assistant" -> sb.append("Assistant: ${msg.content}\n")
+                "user" -> {
+                    sb.append("<|user|>\n")
+                    sb.append(msg.content)
+                    sb.append("\n</s>\n")
+                }
+                "assistant" -> {
+                    sb.append("<|assistant|>\n")
+                    sb.append(msg.content)
+                    sb.append("\n</s>\n")
+                }
             }
         }
-        sb.append("Assistant:")
+
+        // === LAYER 4: Generation trigger ===
+        sb.append("<|assistant|>\n")
+
         return sb.toString()
+    }
+
+    private fun cleanOutput(text: String): String {
+        var cleaned = text
+        // Remove any control tokens that leaked through
+        val artifacts = listOf(
+            "</s>", "<|user|>", "<|system|>", "<|assistant|>", "<|end|>",
+            "<|im_start|>", "<|im_end|>", "<|endoftext|>",
+        )
+        for (artifact in artifacts) {
+            cleaned = cleaned.replace(artifact, "")
+        }
+        // Remove simulated conversation continuations
+        val cutPatterns = listOf("\nUser:", "\nHuman:", "\nSystem:", "\nAssistant:")
+        for (pattern in cutPatterns) {
+            val idx = cleaned.indexOf(pattern)
+            if (idx > 0) {
+                cleaned = cleaned.substring(0, idx)
+            }
+        }
+        return cleaned.trim()
     }
 
     private fun addMessageToUi(message: ChatMessage) {
