@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>v1.0.0</strong> — Private AI on your device. Download and run local LLMs entirely offline.
+  <strong>v1.1.0</strong> — Private AI on your device. Download and run local LLMs entirely offline.
 </p>
 
 ## What is Slate?
