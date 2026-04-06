@@ -5,7 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +57,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -86,13 +92,20 @@ fun ChatScreen(
     val isReady = inferenceState is InferenceState.Ready
     val isGenerating = inferenceState is InferenceState.Generating
     val canRegenerate = isReady && messages.lastOrNull()?.role == "assistant"
-
-    // Auto-scroll
-    val lastLen = messages.lastOrNull()?.content?.length ?: 0
     val isStreaming = messages.lastOrNull()?.isStreaming == true
-    LaunchedEffect(lastLen, messages.size) {
+
+    // Auto-scroll — only when message count changes or streaming starts/stops
+    // NOT on every character (that causes flickering)
+    LaunchedEffect(messages.size, isStreaming) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1, if (isStreaming) Int.MAX_VALUE / 2 else 0)
+            listState.scrollToItem(messages.size - 1)
+        }
+    }
+    // Smooth scroll to bottom periodically during streaming (every ~300ms via content length buckets)
+    val scrollBucket = (messages.lastOrNull()?.content?.length ?: 0) / 80
+    LaunchedEffect(scrollBucket) {
+        if (isStreaming && messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
         }
     }
 
@@ -196,22 +209,16 @@ fun ChatScreen(
                     imeAction = ImeAction.Send,
                     onImeAction = { viewModel.sendMessage() },
                     modifier = Modifier.weight(1f),
+                    accentColor = accentColor,
                 )
                 Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = { if (isGenerating) viewModel.stopGeneration() else viewModel.sendMessage() },
-                    enabled = isGenerating || inputText.isNotBlank(),
-                ) {
-                    Icon(
-                        imageVector = if (isGenerating) Icons.Default.Stop else Icons.Default.Send,
-                        contentDescription = if (isGenerating) "Stop" else "Send",
-                        tint = when {
-                            isGenerating -> MaterialTheme.colorScheme.error
-                            inputText.isNotBlank() -> accentColor
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
+                AnimatedSendButton(
+                    isGenerating = isGenerating,
+                    canSend = inputText.isNotBlank(),
+                    accentColor = accentColor,
+                    onSend = { viewModel.sendMessage() },
+                    onStop = { viewModel.stopGeneration() },
+                )
             }
         }
     }
@@ -277,18 +284,48 @@ private fun ChatTopBar(
     val isLoaded = inferenceState is InferenceState.Ready || inferenceState is InferenceState.Generating || inferenceState is InferenceState.Error
     val animatedAccent by animateColorAsState(accentColor, tween(500), label = "accent")
 
+    // Heartbeat glow animation for "Slate" text
+    val glowTransition = rememberInfiniteTransition(label = "glow")
+    val glowAlpha by glowTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = androidx.compose.animation.core.EaseInOutCubic), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "slateGlow",
+    )
+
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Slate", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+        // Logo icon
+        val context = LocalContext.current
+        val logoBitmap = remember {
+            try {
+                val stream = context.assets.open("Icon_logo.png")
+                android.graphics.BitmapFactory.decodeStream(stream)?.asImageBitmap()
+            } catch (e: Exception) { null }
+        }
+        if (logoBitmap != null) {
+            Image(
+                bitmap = logoBitmap,
+                contentDescription = "Slate",
+                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
+
+        // "Slate" with subtle blue glow heartbeat
+        Text(
+            text = "Slate",
+            style = MaterialTheme.typography.titleLarge,
+            color = Color(0xFF7EB8D0).copy(alpha = glowAlpha),
+        )
 
         // Model indicator
         if (isLoaded && modelName.isNotEmpty()) {
-            Spacer(Modifier.width(12.dp))
-            Box(Modifier.size(10.dp).clip(CircleShape).background(animatedAccent))
-            Spacer(Modifier.width(6.dp))
-            Text(modelName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.size(8.dp).clip(CircleShape).background(animatedAccent))
+            Spacer(Modifier.width(5.dp))
+            Text(modelName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Spacer(Modifier.weight(1f))
@@ -432,5 +469,43 @@ private fun MessageBubble(message: ChatMessage, accentColor: Color, modelName: S
                 }
             }
         }
+    }
+}
+
+// === ANIMATED SEND/STOP BUTTON ===
+@Composable
+private fun AnimatedSendButton(
+    isGenerating: Boolean,
+    canSend: Boolean,
+    accentColor: Color,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (canSend || isGenerating) 1f else 0.85f,
+        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "send_scale",
+    )
+    val iconColor by animateColorAsState(
+        targetValue = when {
+            isGenerating -> MaterialTheme.colorScheme.error
+            canSend -> accentColor
+            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        },
+        animationSpec = tween(200),
+        label = "send_color",
+    )
+
+    IconButton(
+        onClick = { if (isGenerating) onStop() else onSend() },
+        enabled = isGenerating || canSend,
+        modifier = Modifier.size(48.dp).scale(scale),
+    ) {
+        Icon(
+            imageVector = if (isGenerating) Icons.Default.Stop else Icons.Default.Send,
+            contentDescription = if (isGenerating) "Stop" else "Send",
+            tint = iconColor,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }

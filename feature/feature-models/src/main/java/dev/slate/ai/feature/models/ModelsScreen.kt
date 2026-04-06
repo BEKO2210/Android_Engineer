@@ -50,6 +50,7 @@ import dev.slate.ai.core.ui.component.SlateChipStyle
 fun ModelsScreen(
     modifier: Modifier = Modifier,
     onModelClick: (String) -> Unit = {},
+    onImportClick: () -> Unit = {},
     viewModel: ModelsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -126,9 +127,26 @@ fun ModelsScreen(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        // Import own model button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            androidx.compose.material3.TextButton(onClick = onImportClick) {
+                Icon(
+                    Icons.Default.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("Import own model", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        }
 
-        // Content — no AnimatedContent here (crashes with LazyColumn)
+        // Content
         when (val state = uiState) {
             is ModelsUiState.Loading -> {
                 LazyColumn(

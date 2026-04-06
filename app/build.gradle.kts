@@ -1,3 +1,19 @@
+// Auto-versioning from git
+fun gitVersionCode(): Int {
+    return try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD").start()
+        process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+    } catch (e: Exception) { 1 }
+}
+
+fun gitVersionName(): String {
+    val commitCount = gitVersionCode()
+    val major = 1
+    val minor = commitCount / 10
+    val patch = commitCount % 10
+    return "$major.$minor.$patch"
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -14,8 +30,8 @@ android {
         applicationId = "dev.slate.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = gitVersionCode()
+        versionName = gitVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

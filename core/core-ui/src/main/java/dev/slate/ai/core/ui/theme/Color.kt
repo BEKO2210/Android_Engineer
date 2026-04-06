@@ -41,6 +41,7 @@ val SlateAccentQwen = Color(0xFFA8C4D4)     // Ice-blue (flagship)
 val SlateAccentSmolLM = Color(0xFFB39DDB)   // Soft lavender
 val SlateAccentPhi = Color(0xFF80CBC4)       // Teal-mint
 val SlateAccentLlama = Color(0xFFFFAB91)     // Warm coral
+val SlateAccentGemma = Color(0xFF90CAF9)     // Sky blue
 
 object ModelAccent {
     fun forModelId(modelId: String?): Color {
@@ -50,6 +51,7 @@ object ModelAccent {
             modelId.contains("smol", ignoreCase = true) -> SlateAccentSmolLM
             modelId.contains("phi", ignoreCase = true) -> SlateAccentPhi
             modelId.contains("llama", ignoreCase = true) -> SlateAccentLlama
+            modelId.contains("gemma", ignoreCase = true) -> SlateAccentGemma
             else -> SlatePrimary
         }
     }
@@ -61,6 +63,7 @@ object ModelAccent {
             modelId.contains("smol", ignoreCase = true) -> "SmolLM"
             modelId.contains("phi", ignoreCase = true) -> "Phi"
             modelId.contains("llama", ignoreCase = true) -> "Llama"
+            modelId.contains("gemma", ignoreCase = true) -> "Gemma"
             else -> ""
         }
     }
