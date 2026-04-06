@@ -244,6 +244,7 @@ class ChatViewModel @Inject constructor(
                     val current = streamingBuffer.toString()
                     val stopPatterns = listOf(
                         "<|im_end|>", "<|im_start|>", "<|end|>", "<|user|>", "<|system|>",
+                        "<end_of_turn>", "<start_of_turn>",
                         "</s>", "<|endoftext|>",
                         "\nUser:", "\nHuman:", "\nSystem:",
                     )
@@ -349,20 +350,31 @@ Rules:
         val sb = StringBuilder()
         val modelId = _currentModelId.value ?: ""
         val isPhi = modelId.contains("phi", ignoreCase = true)
+        val isGemma = modelId.contains("gemma", ignoreCase = true)
 
-        // Pick template tokens
+        // Pick template tokens per model family
         val sysStart: String; val sysEnd: String
         val uStart: String; val uEnd: String
         val aStart: String; val aEnd: String
 
-        if (isPhi) {
-            sysStart = "<|system|>\n"; sysEnd = "<|end|>\n"
-            uStart = "<|user|>\n"; uEnd = "<|end|>\n"
-            aStart = "<|assistant|>\n"; aEnd = "<|end|>\n"
-        } else {
-            sysStart = "<|im_start|>system\n"; sysEnd = "<|im_end|>\n"
-            uStart = "<|im_start|>user\n"; uEnd = "<|im_end|>\n"
-            aStart = "<|im_start|>assistant\n"; aEnd = "<|im_end|>\n"
+        when {
+            isGemma -> {
+                // Gemma uses <start_of_turn>/<end_of_turn>
+                sysStart = "<start_of_turn>user\n"; sysEnd = "<end_of_turn>\n"
+                uStart = "<start_of_turn>user\n"; uEnd = "<end_of_turn>\n"
+                aStart = "<start_of_turn>model\n"; aEnd = "<end_of_turn>\n"
+            }
+            isPhi -> {
+                sysStart = "<|system|>\n"; sysEnd = "<|end|>\n"
+                uStart = "<|user|>\n"; uEnd = "<|end|>\n"
+                aStart = "<|assistant|>\n"; aEnd = "<|end|>\n"
+            }
+            else -> {
+                // Qwen, SmolLM2, Llama — ChatML format
+                sysStart = "<|im_start|>system\n"; sysEnd = "<|im_end|>\n"
+                uStart = "<|im_start|>user\n"; uEnd = "<|im_end|>\n"
+                aStart = "<|im_start|>assistant\n"; aEnd = "<|im_end|>\n"
+            }
         }
 
         // System prompt
@@ -405,6 +417,7 @@ Rules:
         val artifacts = listOf(
             "<|im_start|>", "<|im_end|>",
             "<|system|>", "<|user|>", "<|assistant|>", "<|end|>",
+            "<start_of_turn>", "<end_of_turn>", "model\n",
             "</s>", "<|endoftext|>",
             "### Instruction:", "### Conversation:", "### Response:",
         )

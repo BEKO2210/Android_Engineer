@@ -76,6 +76,7 @@ fun SlateNavGraph(
                 onModelClick = { modelId ->
                     navController.navigate("models/$modelId")
                 },
+                onImportClick = { navController.navigate("import") },
             )
         }
         // Detail screens slide in from right

@@ -54,6 +54,24 @@
     "deviceRecommendation": "Flagship devices with 8 GB+ RAM"
   },
   {
+    "id": "gemma-3-1b-q4",
+    "name": "Gemma 3 1B",
+    "description": "Google's newest small model. Good instruction following, multilingual, efficient. Great balance of speed and quality.",
+    "sizeBytes": 806058336,
+    "quantization": "Q4_K_M",
+    "parameterCount": "1B",
+    "tier": "TINY",
+    "license": "Gemma License",
+    "downloadUrl": "https://huggingface.co/lm-kit/gemma-3-1b-instruct-gguf/resolve/main/gemma-3-it-1B-Q4_K_M.gguf",
+    "sha256": "",
+    "minRamMb": 3072,
+    "fileName": "gemma-3-it-1B-Q4_K_M.gguf",
+    "contextLength": 2048,
+    "family": "Gemma 3",
+    "capabilities": ["General chat", "Multilingual", "Fast responses"],
+    "deviceRecommendation": "Works on all devices (3 GB+ RAM)"
+  },
+  {
     "id": "llama-3.2-1b-q4",
     "name": "Llama 3.2 1B",
     "description": "Meta's smallest model. Ultra-fast but limited in quality. Best for testing or very constrained devices.",
