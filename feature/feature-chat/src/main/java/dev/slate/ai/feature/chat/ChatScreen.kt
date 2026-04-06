@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -196,22 +197,16 @@ fun ChatScreen(
                     imeAction = ImeAction.Send,
                     onImeAction = { viewModel.sendMessage() },
                     modifier = Modifier.weight(1f),
+                    accentColor = accentColor,
                 )
                 Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = { if (isGenerating) viewModel.stopGeneration() else viewModel.sendMessage() },
-                    enabled = isGenerating || inputText.isNotBlank(),
-                ) {
-                    Icon(
-                        imageVector = if (isGenerating) Icons.Default.Stop else Icons.Default.Send,
-                        contentDescription = if (isGenerating) "Stop" else "Send",
-                        tint = when {
-                            isGenerating -> MaterialTheme.colorScheme.error
-                            inputText.isNotBlank() -> accentColor
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
+                AnimatedSendButton(
+                    isGenerating = isGenerating,
+                    canSend = inputText.isNotBlank(),
+                    accentColor = accentColor,
+                    onSend = { viewModel.sendMessage() },
+                    onStop = { viewModel.stopGeneration() },
+                )
             }
         }
     }
@@ -432,5 +427,43 @@ private fun MessageBubble(message: ChatMessage, accentColor: Color, modelName: S
                 }
             }
         }
+    }
+}
+
+// === ANIMATED SEND/STOP BUTTON ===
+@Composable
+private fun AnimatedSendButton(
+    isGenerating: Boolean,
+    canSend: Boolean,
+    accentColor: Color,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (canSend || isGenerating) 1f else 0.85f,
+        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "send_scale",
+    )
+    val iconColor by animateColorAsState(
+        targetValue = when {
+            isGenerating -> MaterialTheme.colorScheme.error
+            canSend -> accentColor
+            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        },
+        animationSpec = tween(200),
+        label = "send_color",
+    )
+
+    IconButton(
+        onClick = { if (isGenerating) onStop() else onSend() },
+        enabled = isGenerating || canSend,
+        modifier = Modifier.size(48.dp).scale(scale),
+    ) {
+        Icon(
+            imageVector = if (isGenerating) Icons.Default.Stop else Icons.Default.Send,
+            contentDescription = if (isGenerating) "Stop" else "Send",
+            tint = iconColor,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
