@@ -17,7 +17,7 @@
 
 ## Download
 
-Get the latest APK from [GitHub Actions](https://github.com/BEKO2210/Android_Engineer/actions) → select the latest successful build → download **Slate-x.x.x-release.apk** from Artifacts.
+Get the latest APK from [GitHub Actions](https://github.com/BEKO2210/Android_Engineer/actions) → select the latest successful build → download **Slate-x.x.x-debug.apk** from Artifacts.
 
 **Requirements:** Android 8.0+, ARM64 device, 4 GB+ RAM
 
