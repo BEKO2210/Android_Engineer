@@ -2,6 +2,7 @@ package dev.slate.ai.feature.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Security
@@ -31,10 +33,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -48,6 +52,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToPrivacy: () -> Unit = {},
     onNavigateToStorage: () -> Unit = {},
+    onNavigateToImport: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -121,6 +126,13 @@ fun SettingsScreen(
             onClick = onNavigateToStorage,
             showChevron = true,
         )
+        SettingsAction(
+            icon = Icons.Default.FileOpen,
+            title = "Import custom model",
+            description = "Load your own .gguf file from device",
+            onClick = onNavigateToImport,
+            showChevron = true,
+        )
         SettingsDivider()
 
         // About
@@ -132,10 +144,16 @@ fun SettingsScreen(
             onClick = onNavigateToPrivacy,
             showChevron = true,
         )
+        val context = LocalContext.current
+        val versionName = remember {
+            try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+            } catch (e: Exception) { "?" }
+        }
         SettingsAction(
             icon = Icons.Default.Info,
             title = "About Slate",
-            description = "Version 0.1.0",
+            description = "Version $versionName",
             onClick = {},
         )
 

@@ -21,6 +21,7 @@ import dev.slate.ai.feature.chat.ChatScreen
 import dev.slate.ai.feature.models.ModelDetailScreen
 import dev.slate.ai.feature.models.ModelsScreen
 import dev.slate.ai.feature.onboarding.OnboardingScreen
+import dev.slate.ai.feature.settings.ImportScreen
 import dev.slate.ai.feature.settings.PrivacyScreen
 import dev.slate.ai.feature.settings.SettingsScreen
 import dev.slate.ai.feature.settings.StorageScreen
@@ -94,6 +95,7 @@ fun SlateNavGraph(
             SettingsScreen(
                 onNavigateToPrivacy = { navController.navigate("privacy") },
                 onNavigateToStorage = { navController.navigate("storage") },
+                onNavigateToImport = { navController.navigate("import") },
             )
         }
         composable(
@@ -109,6 +111,13 @@ fun SlateNavGraph(
             popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(SLIDE_MS)) },
         ) {
             StorageScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            "import",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(SLIDE_MS)) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(SLIDE_MS)) },
+        ) {
+            ImportScreen(onBack = { navController.popBackStack() })
         }
     }
 }
