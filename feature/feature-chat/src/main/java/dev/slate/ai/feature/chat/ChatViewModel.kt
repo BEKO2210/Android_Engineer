@@ -377,13 +377,23 @@ Rules:
             }
         }
 
-        // System prompt
-        sb.append(sysStart).append(SYSTEM_PROMPT).append(sysEnd)
+        // System prompt — Gemma has no system role, so embed in first user turn
+        if (isGemma) {
+            // For Gemma: system instructions + first example merged into one user turn
+            sb.append(uStart)
+            sb.append("Instructions: ").append(SYSTEM_PROMPT).append("\n\n")
+            sb.append("User says: Hi")
+            sb.append(uEnd)
+            sb.append(aStart).append("Hello! How can I help you?").append(aEnd)
+            // Skip remaining few-shot (keep prompt short for Gemma)
+        } else {
+            sb.append(sysStart).append(SYSTEM_PROMPT).append(sysEnd)
 
-        // Few-shot examples (teach by showing, not telling)
-        for ((q, a) in FEW_SHOT_EXAMPLES) {
-            sb.append(uStart).append(q).append(uEnd)
-            sb.append(aStart).append(a).append(aEnd)
+            // Few-shot examples
+            for ((q, a) in FEW_SHOT_EXAMPLES) {
+                sb.append(uStart).append(q).append(uEnd)
+                sb.append(aStart).append(a).append(aEnd)
+            }
         }
 
         // Conversation history — budget-aware

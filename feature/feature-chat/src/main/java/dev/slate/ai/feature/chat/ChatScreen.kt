@@ -308,7 +308,7 @@ private fun ChatTopBar(
             Image(
                 bitmap = logoBitmap,
                 contentDescription = "Slate",
-                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
+                modifier = Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)),
             )
             Spacer(Modifier.width(10.dp))
         }
