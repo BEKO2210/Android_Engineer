@@ -26,10 +26,10 @@ sealed interface InferenceState {
 
 data class InferenceParams(
     val maxTokens: Int = 400,
-    val temperature: Float = 0.7f,
+    val temperature: Float = 0.3f,   // Low temp = better instruction following for small models
     val topP: Float = 0.9f,
     val topK: Int = 40,
-    val repeatPenalty: Float = 1.1f,
+    val repeatPenalty: Float = 1.15f, // Slightly higher to prevent repetition in small models
 )
 
 data class ModelLoadParams(

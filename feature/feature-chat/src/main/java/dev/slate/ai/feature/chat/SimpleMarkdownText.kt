@@ -121,6 +121,63 @@ fun SimpleMarkdownText(
                         }
                     }
                 }
+                is MarkdownBlock.Table -> {
+                    MarkdownTableView(block = block, textColor = color)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTableView(block: MarkdownBlock.Table, textColor: Color) {
+    val headerBg = Color(0xFF1E2A32)
+    val rowBgAlt = Color(0xFF1A1A1A).copy(alpha = 0.3f)
+    val borderColor = Color(0xFF2E2E2E)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF141414))
+            .horizontalScroll(rememberScrollState()),
+    ) {
+        // Header row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(headerBg)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            block.headers.forEachIndexed { idx, header ->
+                if (idx > 0) Spacer(Modifier.width(1.dp).height(20.dp).background(borderColor))
+                Text(
+                    text = header,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = textColor,
+                    modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp),
+                )
+            }
+        }
+
+        // Data rows
+        block.rows.forEachIndexed { rowIdx, row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (rowIdx % 2 == 1) Modifier.background(rowBgAlt) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                row.forEachIndexed { idx, cell ->
+                    if (idx > 0) Spacer(Modifier.width(1.dp).height(18.dp).background(borderColor))
+                    Text(
+                        text = cell,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textColor.copy(alpha = 0.85f),
+                        modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -196,6 +253,7 @@ private sealed interface MarkdownBlock {
     data class Header(val text: String, val level: Int) : MarkdownBlock
     data class BulletList(val items: List<String>) : MarkdownBlock
     data class NumberedList(val items: List<String>) : MarkdownBlock
+    data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownBlock
 }
 
 private fun parseBlocks(text: String): List<MarkdownBlock> {
@@ -275,6 +333,20 @@ private fun parseBlocks(text: String): List<MarkdownBlock> {
                     } else break
                 }
                 blocks.add(MarkdownBlock.NumberedList(items))
+            }
+
+            // Table (lines with | pipes, followed by separator |---|)
+            trimmed.contains('|') && i + 1 < lines.size && lines[i + 1].trimStart().matches(Regex("^\\|?[\\s-:|]+\\|[\\s-:|]*$")) -> {
+                flushParagraph()
+                val headerCells = trimmed.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                i += 2 // skip header + separator
+                val dataRows = mutableListOf<List<String>>()
+                while (i < lines.size && lines[i].contains('|')) {
+                    val cells = lines[i].split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                    if (cells.isNotEmpty()) dataRows.add(cells)
+                    i++
+                }
+                blocks.add(MarkdownBlock.Table(headerCells, dataRows))
             }
 
             // Blank line
