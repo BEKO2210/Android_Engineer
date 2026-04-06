@@ -87,13 +87,20 @@ fun ChatScreen(
     val isReady = inferenceState is InferenceState.Ready
     val isGenerating = inferenceState is InferenceState.Generating
     val canRegenerate = isReady && messages.lastOrNull()?.role == "assistant"
-
-    // Auto-scroll
-    val lastLen = messages.lastOrNull()?.content?.length ?: 0
     val isStreaming = messages.lastOrNull()?.isStreaming == true
-    LaunchedEffect(lastLen, messages.size) {
+
+    // Auto-scroll — only when message count changes or streaming starts/stops
+    // NOT on every character (that causes flickering)
+    LaunchedEffect(messages.size, isStreaming) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1, if (isStreaming) Int.MAX_VALUE / 2 else 0)
+            listState.scrollToItem(messages.size - 1)
+        }
+    }
+    // Smooth scroll to bottom periodically during streaming (every ~300ms via content length buckets)
+    val scrollBucket = (messages.lastOrNull()?.content?.length ?: 0) / 80
+    LaunchedEffect(scrollBucket) {
+        if (isStreaming && messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
         }
     }
 
